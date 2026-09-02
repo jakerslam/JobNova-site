@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Menu, X } from "lucide-react";
-import { InterviewPanel } from "@/components/InterviewPanel";
 import { JobDetailView } from "@/components/JobDetailView";
+import { JobFitPanel } from "@/components/JobFitPanel";
 import { Sidebar } from "@/components/Sidebar";
 import { TopNav } from "@/components/TopNav";
 import { useTemporaryLikes } from "@/hooks/useTemporaryLikes";
@@ -21,6 +21,9 @@ export function JobDetailClient({ jobs, job }: JobDetailClientProps) {
   const [backendStatusJobs, setBackendStatusJobs] = useState<Partial<Record<JobStatus, Job[]>>>({});
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isInterviewOpen, setIsInterviewOpen] = useState(false);
+  const [hasPremium] = useState(
+    () => typeof window !== "undefined" && window.localStorage.getItem("jobnova:has-premium") === "true",
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -124,7 +127,7 @@ export function JobDetailClient({ jobs, job }: JobDetailClientProps) {
             </section>
 
             <div className="hidden xl:block">
-              <InterviewPanel />
+              <JobFitPanel job={job} hasPremium={hasPremium} />
             </div>
           </div>
         </div>
@@ -141,7 +144,7 @@ export function JobDetailClient({ jobs, job }: JobDetailClientProps) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <InterviewPanel />
+            <JobFitPanel job={job} hasPremium={hasPremium} />
           </div>
         </div>
       ) : null}
