@@ -13,6 +13,8 @@ type JobDetailViewProps = {
 
 export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProps) {
   const [copied, setCopied] = useState(false);
+  const ringColor = job.match >= 90 ? "#9bea1f" : "#ffcf2f";
+  const matchAngle = job.match * 3.6;
 
   async function copyJobLink() {
     const url = `${window.location.origin}/jobs/${job.status.toLowerCase()}/${job.id}`;
@@ -88,10 +90,18 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="grid h-[70px] w-[70px] place-items-center rounded-full border-[7px] border-lime-400 text-center">
-            <div>
-              <strong className="block text-[18px] leading-none">{job.match}%</strong>
-              <span className="text-[10px] text-muted">Match</span>
+          <div
+            aria-label={`${job.match}% match`}
+            className="grid h-[70px] w-[70px] place-items-center rounded-full p-[5px] text-center"
+            style={{
+              background: `conic-gradient(from ${360 - matchAngle}deg, ${ringColor} ${matchAngle}deg, #eef0f2 0deg)`,
+            }}
+          >
+            <div className="grid h-full w-full place-items-center rounded-full bg-white">
+              <div className="translate-y-[1px]">
+                <strong className="block text-[18px] font-medium leading-none text-ink">{job.match}%</strong>
+                <span className="mt-1 block text-[10px] font-normal leading-none text-ink">Match</span>
+              </div>
             </div>
           </div>
           <button

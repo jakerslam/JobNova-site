@@ -59,7 +59,7 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
           className="grid h-[108px] w-[108px] shrink-0 place-items-center"
         >
           <div
-            className="grid h-[82px] w-[82px] place-items-center rounded-full p-[5px]"
+            className="grid h-[82px] w-[82px] place-items-center rounded-full p-[6px]"
             style={{
               background: `conic-gradient(from ${360 - matchAngle}deg, ${ringColor} ${matchAngle}deg, #eef0f2 0deg)`,
             }}
