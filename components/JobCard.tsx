@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, Heart, Link2, MapPin, Radio } from "lucide-react";
+import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { LikeIcon, LinkGlyphIcon, LocationDotIcon, SignalIcon } from "@/components/JobCardIcons";
 import type { Job } from "@/types/job";
 
 type JobCardProps = {
@@ -100,10 +101,10 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
                   <span className="block font-normal text-zinc-400">{job.company}</span>
                 )}
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink">
-                  <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
+                  <LocationDotIcon className="h-[5px] w-[5px]" />
                   <span>{job.location}</span>
                   <span className="h-1 w-1 rounded-full bg-violet" />
-                  <Radio aria-hidden="true" className="h-3.5 w-3.5 text-violet" />
+                  <SignalIcon className="h-[13px] w-[13px]" />
                   <span>{job.workplace}</span>
                 </p>
               </div>
@@ -119,7 +120,7 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
                 {copied ? (
                   <Check aria-hidden="true" className="h-4 w-4 text-violet" />
                 ) : (
-                  <Link2 aria-hidden="true" className="h-4 w-4" />
+                  <LinkGlyphIcon className="h-5 w-5" />
                 )}
               </button>
               <button
@@ -128,10 +129,7 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
                 onClick={handleToggleSaved}
                 className="rounded-full p-1 hover:bg-zinc-100"
               >
-                <Heart
-                  aria-hidden="true"
-                  className={`h-4 w-4 ${isSaved ? "fill-violet text-violet" : ""}`}
-                />
+                <LikeIcon className="h-[17px] w-5" isFilled={isSaved} />
               </button>
             </div>
           </div>
