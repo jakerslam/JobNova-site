@@ -101,7 +101,7 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
                   <span className="block font-normal text-zinc-400">{job.company}</span>
                 )}
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink">
-                  <LocationDotIcon className="h-[5px] w-[5px]" />
+                  <LocationDotIcon className="h-4 w-[11px]" />
                   <span>{job.location}</span>
                   <span className="h-1 w-1 rounded-full bg-violet" />
                   <SignalIcon className="h-[13px] w-[13px]" />

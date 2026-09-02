@@ -21,10 +21,12 @@ const navItems = [
 
 export function Sidebar() {
   return (
-    <aside className="flex h-full min-h-dvh w-[190px] shrink-0 flex-col border-r border-zinc-100 bg-white px-[18px] py-5 lg:min-h-[720px]">
-      <BrandLogo />
+    <aside className="flex h-full min-h-dvh w-[219px] shrink-0 flex-col border-r border-zinc-100 bg-white px-3 py-[10px] lg:min-h-[720px]">
+      <div className="flex h-[61.15px] w-[219px] -translate-x-3 items-center px-3">
+        <BrandLogo />
+      </div>
 
-      <nav className="mt-8 space-y-2" aria-label="Dashboard navigation">
+      <nav className="mt-5 space-y-2" aria-label="Dashboard navigation">
         {navItems.map((item) => (
           <button
             key={item.label}
