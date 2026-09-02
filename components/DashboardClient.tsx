@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, Bot, Menu, Undo2, X } from "lucide-react";
+import { BriefcaseBusiness, Bot, Menu, X } from "lucide-react";
+import { ChangePreferenceIcon } from "@/components/ChangePreferenceIcon";
 import { InterviewPanel } from "@/components/InterviewPanel";
 import { JobCard } from "@/components/JobCard";
 import { Sidebar } from "@/components/Sidebar";
@@ -135,7 +136,7 @@ export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
                   type="button"
                   className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-full bg-violet px-4 text-[12px] font-medium text-white shadow-sm transition-shadow hover:shadow-md lg:text-[13px]"
                 >
-                  <Undo2 aria-hidden="true" className="mr-2 h-4 w-4 shrink-0" />
+                  <ChangePreferenceIcon className="mr-2 h-4 w-4 shrink-0" />
                   <span className="truncate">Change Job Preference</span>
                 </button>
 
