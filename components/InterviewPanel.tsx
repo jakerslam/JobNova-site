@@ -2,7 +2,7 @@ import { Bot, Sparkles } from "lucide-react";
 
 export function InterviewPanel() {
   return (
-    <aside className="w-[285px] shrink-0 bg-zinc-50 px-6 py-7">
+    <aside className="h-full w-[285px] shrink-0 overflow-y-auto bg-zinc-50 px-6 py-7">
       <div className="mb-7 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm">
         <Sparkles aria-hidden="true" className="h-5 w-5 text-ink" />
       </div>

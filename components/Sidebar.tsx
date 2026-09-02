@@ -30,7 +30,7 @@ const navGroups: Array<Array<{ label: string; icon: SidebarIcon; active?: boolea
 
 export function Sidebar() {
   return (
-    <aside className="flex h-full min-h-dvh w-[219px] shrink-0 flex-col border-r border-zinc-100 bg-white px-3 py-[10px] lg:min-h-[720px]">
+    <aside className="flex h-full min-h-0 w-[219px] shrink-0 flex-col overflow-hidden border-r border-zinc-100 bg-white px-3 py-[10px]">
       <div className="flex h-[61.15px] w-[219px] -translate-x-3 items-center px-3">
         <BrandLogo />
       </div>

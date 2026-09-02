@@ -96,7 +96,7 @@ function LockedFitContent() {
 
 export function JobFitPanel({ job, hasPremium }: JobFitPanelProps) {
   return (
-    <aside className="w-[285px] shrink-0 bg-zinc-50 px-[22px] py-7">
+    <aside className="h-full w-[285px] shrink-0 overflow-y-auto bg-zinc-50 px-[22px] py-7">
       <div className="rounded-lg bg-white px-5 py-6 shadow-sm">
         <h2 className="mb-5 text-center text-[13px] font-semibold leading-5 text-ink">
           Why is this job a good fit for me?

@@ -97,9 +97,9 @@ export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
   }, [initialStatus, likedJobIds, mergedJobs]);
 
   return (
-    <main className="min-h-screen bg-[#ececec] p-0 sm:p-4 lg:p-6">
-      <div className="mx-auto flex max-w-[1375px] overflow-hidden bg-white shadow-soft sm:rounded-2xl lg:rounded-none">
-        <div className="hidden lg:block">
+    <main className="h-screen overflow-hidden bg-[#ececec] p-0 sm:p-4 lg:p-6">
+      <div className="mx-auto flex h-full max-w-[1375px] overflow-hidden bg-white shadow-soft sm:rounded-2xl lg:rounded-none">
+        <div className="hidden h-full lg:block">
           <Sidebar />
         </div>
 
@@ -116,7 +116,7 @@ export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
           </div>
         ) : null}
 
-        <div className="min-w-0 flex-1 bg-[#f7f7f7]">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#f7f7f7]">
           <div className="flex h-14 items-center justify-between border-b border-zinc-100 bg-white px-4 lg:hidden">
             <button type="button" aria-label="Open menu" onClick={() => setIsMenuOpen(true)}>
               <Menu className="h-6 w-6" />
@@ -129,8 +129,8 @@ export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
 
           <TopNav activeStatus={initialStatus} counts={counts} />
 
-          <div className="flex">
-            <section className="min-w-0 flex-1 px-3 py-4 sm:px-6 xl:w-[870px] xl:max-w-[870px] xl:shrink-0 xl:px-[23px]">
+          <div className="flex min-h-0 flex-1">
+            <section className="h-full min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6 xl:w-[870px] xl:max-w-[870px] xl:shrink-0 xl:px-[23px]">
               <div className="mb-3 flex items-center gap-2">
                 <button
                   type="button"
@@ -170,7 +170,7 @@ export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
               </div>
             </section>
 
-            <div className="hidden xl:block">
+            <div className="hidden h-full xl:block">
               <InterviewPanel />
             </div>
           </div>
