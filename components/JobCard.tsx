@@ -15,6 +15,7 @@ type JobCardProps = {
 
 export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProps) {
   const ringColor = job.match >= 90 ? "#9bea1f" : "#ffcf2f";
+  const matchAngle = job.match * 3.6;
   const jobHref = `/jobs/${job.status.toLowerCase()}/${job.id}`;
   const router = useRouter();
   const [copied, setCopied] = useState(false);
@@ -60,7 +61,7 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
           <div
             className="grid h-[82px] w-[82px] place-items-center rounded-full p-[5px]"
             style={{
-              background: `conic-gradient(${ringColor} ${job.match * 3.6}deg, #eef0f2 0deg)`,
+              background: `conic-gradient(from ${360 - matchAngle}deg, ${ringColor} ${matchAngle}deg, #eef0f2 0deg)`,
             }}
           >
             <div className="grid h-full w-full place-items-center rounded-full bg-white">
