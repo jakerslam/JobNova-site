@@ -52,7 +52,7 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
         isSelected ? "ring-2 ring-violet" : "ring-1 ring-transparent"
       }`}
     >
-      <div className="flex min-h-[124px] gap-1 pt-2">
+      <div className="flex min-h-[124px] items-center gap-1">
         <div
           aria-label={`${job.match}% match`}
           className="grid h-[108px] w-[108px] shrink-0 place-items-center"
@@ -62,7 +62,7 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-4">
-            <div className="pt-[6px]">
+            <div>
               <a
                 href={job.indeedUrl}
                 target="_blank"
