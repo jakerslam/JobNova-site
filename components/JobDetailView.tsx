@@ -3,7 +3,6 @@
 import {
   ArrowLeft,
   Bot,
-  BriefcaseBusiness,
   BriefcaseBusinessIcon,
   Building2,
   Check,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { MatchRing } from "@/components/MatchRing";
 import type { Job } from "@/types/job";
 
@@ -95,13 +95,7 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
       <div className="rounded-xl bg-white px-4 py-5 shadow-soft sm:px-6 sm:py-6">
         <header className="flex flex-col gap-5 border-b border-zinc-100 pb-5 md:flex-row md:items-start md:justify-between">
           <div className="flex gap-5">
-            <div className="grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full bg-white text-[47px] font-bold leading-none">
-              {job.company === "Google" ? (
-                <span className="text-[#4285f4]">G</span>
-              ) : (
-                <BriefcaseBusiness aria-hidden="true" className="h-9 w-9 text-violet" />
-              )}
-            </div>
+            <CompanyLogo company={job.company} logoUrl={job.companyLogoUrl} />
             <div className="min-w-0">
               <div className="mb-1 w-fit rounded-full bg-violet/15 px-4 py-1 text-[12px] font-medium leading-5 text-violet">
                 {job.posted}

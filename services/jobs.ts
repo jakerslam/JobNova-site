@@ -9,6 +9,10 @@ function createIndeedUrl(title: string, company: string, location: string) {
   return `https://www.indeed.com/jobs?${params.toString()}`;
 }
 
+function createLogoUrl(domain: string) {
+  return `https://logo.clearbit.com/${domain}`;
+}
+
 const jobs: Job[] = [
   {
     id: "web-application-developer",
@@ -16,6 +20,8 @@ const jobs: Job[] = [
     indeedUrl: createIndeedUrl("Web Application Developer", "Backd Business Funding", "Austin, Texas Metropolitan Area"),
     company: "Backd Business Funding",
     companyLinkedInUrl: "https://www.linkedin.com/company/backdbusinessfunding",
+    companyDomain: "backd.com",
+    companyLogoUrl: createLogoUrl("backd.com"),
     location: "Austin, Texas Metropolitan Area",
     funding: "Backd Business Funding",
     workplace: "On-site",
@@ -36,6 +42,8 @@ const jobs: Job[] = [
     indeedUrl: createIndeedUrl("Software Engineer, Network Infrastructure", "Cursor AI", "Sunnyvale, CA"),
     company: "Cursor AI",
     companyLinkedInUrl: "https://www.linkedin.com/company/cursorai",
+    companyDomain: "cursor.com",
+    companyLogoUrl: createLogoUrl("cursor.com"),
     location: "Sunnyvale, CA",
     funding: "Cursor AI",
     workplace: "On-site",
@@ -56,6 +64,8 @@ const jobs: Job[] = [
     indeedUrl: createIndeedUrl("Full-Stack Software Engineer Web Developer", "Simons Foundation", "New York, NY"),
     company: "Simons Foundation",
     companyLinkedInUrl: "https://www.linkedin.com/company/simons-foundation",
+    companyDomain: "simonsfoundation.org",
+    companyLogoUrl: createLogoUrl("simonsfoundation.org"),
     location: "New York, NY",
     funding: "Simons Foundation",
     workplace: "On-site",
@@ -76,6 +86,8 @@ const jobs: Job[] = [
     indeedUrl: createIndeedUrl("UX Designer", "Google", "Ann Arbor, MI"),
     company: "Google",
     companyLinkedInUrl: "https://www.linkedin.com/company/google",
+    companyDomain: "google.com",
+    companyLogoUrl: createLogoUrl("google.com"),
     location: "Ann Arbor, MI",
     funding: "Google",
     workplace: "Hybrid",
@@ -96,6 +108,8 @@ const jobs: Job[] = [
     indeedUrl: createIndeedUrl("Frontend Application Engineer", "Northstar Systems", "Remote"),
     company: "Northstar Systems",
     companyLinkedInUrl: "https://ca.linkedin.com/company/north-star-systems-inc1",
+    companyDomain: "northstarsystems.ca",
+    companyLogoUrl: createLogoUrl("northstarsystems.ca"),
     location: "Remote",
     funding: "Northstar Systems",
     workplace: "Remote",

@@ -6,6 +6,8 @@ export type Job = {
   indeedUrl: string;
   company: string;
   companyLinkedInUrl?: string;
+  companyDomain?: string;
+  companyLogoUrl?: string;
   location: string;
   funding: string;
   workplace: "On-site" | "Remote" | "Hybrid";
