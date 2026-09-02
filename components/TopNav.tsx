@@ -31,7 +31,7 @@ export function TopNav({ activeStatus, counts }: TopNavProps) {
         ))}
       </div>
 
-      <div className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg bg-violet px-4 text-[12px] font-medium text-white lg:max-w-[520px] lg:text-[13px]">
+      <div className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-full bg-violet px-4 text-[12px] font-medium text-white lg:max-w-[520px] lg:text-[13px]">
         <Undo2 aria-hidden="true" className="mr-2 h-4 w-4 shrink-0" />
         <span className="truncate">Change Job Preference</span>
       </div>

@@ -33,7 +33,7 @@ export function Sidebar() {
             type="button"
             className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-[13px] font-medium ${
               item.active
-                ? "bg-violet text-white shadow-sm"
+                ? "rounded-full bg-violet text-white shadow-sm"
                 : "text-ink hover:bg-zinc-50"
             }`}
           >
@@ -43,10 +43,10 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto rounded-lg bg-violet px-5 py-6 text-white">
-        <p className="mb-2 text-[17px] font-medium leading-tight">Upgrade Your Plan</p>
-        <p className="mb-5 text-[12px] leading-5 text-white/75">Boost your success rate now!</p>
-        <button type="button" className="h-10 w-full rounded-full bg-white text-[12px] font-semibold text-ink">
+      <div className="mx-auto mt-auto h-[214px] w-[179px] rounded-[14px] bg-gradient-to-br from-[#7a4ff2] to-[#d4a8ff] px-[21px] pb-6 pt-[30px] text-white">
+        <p className="mb-[15px] w-[140px] text-[18px] font-medium leading-6 tracking-[-0.02em]">Upgrade Your Plan</p>
+        <p className="mb-[18px] w-[137px] text-[14px] font-normal leading-[22px] tracking-[-0.02em] text-white">Boost your success rate now!</p>
+        <button type="button" className="h-10 w-[135px] rounded-full bg-white text-[16px] font-medium leading-[20.3px] tracking-[-0.02em] text-ink">
           Subscription
         </button>
       </div>
