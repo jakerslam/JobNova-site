@@ -8,6 +8,10 @@ type JobsStatusPageProps = {
   }>;
 };
 
+export function generateStaticParams() {
+  return ["matched", "liked", "applied"].map((status) => ({ status }));
+}
+
 export default async function JobsStatusPage({ params }: JobsStatusPageProps) {
   const { status: statusSlug } = await params;
   const status = slugToStatus(statusSlug);

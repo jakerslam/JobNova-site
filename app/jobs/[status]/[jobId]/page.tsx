@@ -10,6 +10,15 @@ type JobDetailPageProps = {
   }>;
 };
 
+export async function generateStaticParams() {
+  const jobs = await getJobs();
+
+  return jobs.map((job) => ({
+    status: job.status.toLowerCase(),
+    jobId: job.id,
+  }));
+}
+
 export async function generateMetadata({ params }: JobDetailPageProps): Promise<Metadata> {
   const { jobId } = await params;
   const job = await getJobById(jobId);

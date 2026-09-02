@@ -1,5 +1,8 @@
-import { redirect } from "next/navigation";
+import { DashboardClient } from "@/components/DashboardClient";
+import { getJobs } from "@/services/jobs";
 
-export default function DashboardPage() {
-  redirect("/jobs/matched");
+export default async function DashboardPage() {
+  const jobs = await getJobs();
+
+  return <DashboardClient jobs={jobs} initialStatus="Matched" />;
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTemporaryLikes } from "@/hooks/useTemporaryLikes";
+import { withBasePath } from "@/services/sitePath";
 import type { Job, JobStatus } from "@/types/job";
 
 const statuses: JobStatus[] = ["Matched", "Liked", "Applied"];
@@ -22,8 +23,8 @@ export function useJobCollections(jobs: Job[]): JobCollections {
 
     async function fetchStatusJobs() {
       const [likedResponse, appliedResponse] = await Promise.allSettled([
-        fetch("/api/jobs?status=Liked"),
-        fetch("/api/jobs?status=Applied"),
+        fetch(withBasePath("/api/jobs?status=Liked")),
+        fetch(withBasePath("/api/jobs?status=Applied")),
       ]);
 
       if (!isMounted) {
