@@ -4,6 +4,10 @@ Internship application project for a Figma-informed AI job-search dashboard.
 
 The project implements a JobNova-style career dashboard with matched jobs, liked jobs, applied jobs, job detail pages, temporary saved-state persistence, backend-ready service boundaries, and responsive H5/mobile behavior.
 
+## Live Demo
+
+[https://jakerslam.github.io/JobNova-site/](https://jakerslam.github.io/JobNova-site/)
+
 ## Tech Stack
 
 - Next.js App Router
@@ -35,7 +39,7 @@ npm run build
 
 ## Routes
 
-- `/` redirects to `/jobs/matched`
+- `/`
 - `/jobs/matched`
 - `/jobs/liked`
 - `/jobs/applied`
