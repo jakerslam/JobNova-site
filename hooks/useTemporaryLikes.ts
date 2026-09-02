@@ -30,10 +30,12 @@ function writeStoredLikes(ids: Set<string>) {
 }
 
 export function useTemporaryLikes() {
-  const [likedJobIds, setLikedJobIds] = useState<Set<string>>(() => readStoredLikes());
+  const [likedJobIds, setLikedJobIds] = useState<Set<string>>(() => new Set(fallbackLikedIds));
   const hasHydratedBackendLikes = useRef(false);
 
   useEffect(() => {
+    window.queueMicrotask(() => setLikedJobIds(readStoredLikes()));
+
     function handleStorage(event: StorageEvent) {
       if (event.key === storageKey) {
         setLikedJobIds(readStoredLikes());
