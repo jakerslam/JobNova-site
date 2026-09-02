@@ -1,6 +1,7 @@
 import type { JobStatus } from "@/types/job";
 import { Undo2 } from "lucide-react";
 import Link from "next/link";
+import { TopMatchedIcon } from "./TopMatchedIcon";
 
 const tabs: JobStatus[] = ["Matched", "Liked", "Applied"];
 
@@ -36,7 +37,11 @@ export function TopNav({ activeStatus, counts }: TopNavProps) {
         <span className="truncate">Change Job Preference</span>
       </div>
 
-      <button type="button" className="hidden h-9 rounded-lg border border-zinc-200 bg-white px-4 text-[13px] font-medium shadow-sm lg:block">
+      <button
+        type="button"
+        className="hidden h-9 items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 text-[13px] font-medium text-ink shadow-[0_4px_0_rgba(31,41,55,0.06),0_10px_18px_rgba(31,41,55,0.08)] transition-shadow hover:shadow-[0_5px_0_rgba(31,41,55,0.07),0_13px_22px_rgba(31,41,55,0.1)] lg:flex"
+      >
+        <TopMatchedIcon className="h-4 w-4" />
         Top matched
       </button>
     </header>
