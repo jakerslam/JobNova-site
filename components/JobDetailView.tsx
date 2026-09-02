@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { MatchRing } from "@/components/MatchRing";
 import type { Job } from "@/types/job";
 
 type JobDetailViewProps = {
@@ -26,8 +27,6 @@ type JobDetailViewProps = {
 
 export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProps) {
   const [copied, setCopied] = useState(false);
-  const ringColor = job.match >= 90 ? "#9bea1f" : "#ffcf2f";
-  const matchAngle = job.match * 3.6;
   const locationParts = job.location.includes(",")
     ? job.location.split(",").map((part) => part.trim()).filter(Boolean)
     : [job.location];
@@ -47,18 +46,20 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
 
   return (
     <article>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Link
-          href={`/jobs/${job.status.toLowerCase()}`}
-          className="inline-flex h-9 w-14 items-center justify-center rounded-full bg-white text-ink shadow-sm"
-          aria-label="Back to jobs"
-        >
-          <ArrowLeft aria-hidden="true" className="h-5 w-5" />
-        </Link>
-        <div className="mr-auto rounded-full bg-violet px-4 py-2 text-[13px] font-medium text-white">
-          {job.applicants} applicants
+      <div className="mb-[22px] flex h-10 items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/jobs/${job.status.toLowerCase()}`}
+            className="inline-flex h-8 w-12 items-center justify-center rounded-full bg-white text-ink shadow-sm transition-shadow hover:shadow-md"
+            aria-label="Back to jobs"
+          >
+            <ArrowLeft aria-hidden="true" className="h-5 w-5" />
+          </Link>
+          <div className="inline-flex h-8 items-center rounded-full bg-violet px-4 text-[13px] font-medium text-white">
+            {job.applicants} applicants
+          </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             aria-label={copied ? "Job link copied" : "Copy job link"}
@@ -102,7 +103,7 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
               )}
             </div>
             <div className="min-w-0">
-              <div className="mb-1 w-fit rounded-full bg-violet/15 px-4 py-1 text-[13px] font-medium text-violet">
+              <div className="mb-1 w-fit rounded-full bg-violet/15 px-4 py-1 text-[12px] font-medium leading-5 text-violet">
                 {job.posted}
               </div>
               <a
@@ -113,7 +114,7 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
               >
                 <h1 className="text-[22px] font-semibold leading-[28px] tracking-[-0.02em] text-ink">{job.title}</h1>
               </a>
-              <div className="mt-1 text-[13px] leading-5">
+              <div className="mt-[2px] text-[13px] leading-5">
                 {job.companyLinkedInUrl ? (
                   <a
                     href={job.companyLinkedInUrl}
@@ -126,8 +127,8 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
                 ) : (
                   <span className="text-zinc-400">Company name</span>
                 )}
-                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-ink">
-                  <MapPin aria-hidden="true" className="h-4 w-4 shrink-0" />
+                <p className="mt-[3px] flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-normal text-ink">
+                  <MapPin aria-hidden="true" className="h-[14px] w-[14px] shrink-0" />
                   <span>{cityLabel}</span>
                   <span className="h-1 w-1 rounded-full bg-violet" />
                   <span>{job.posted.replace("hours", "days").replace("hour", "day")}</span>
@@ -139,23 +140,10 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
             </div>
           </div>
 
-          <div
-            aria-label={`${job.match}% match`}
-            className="grid h-[70px] w-[70px] shrink-0 place-items-center rounded-full p-[5px] text-center"
-            style={{
-              background: `conic-gradient(from ${360 - matchAngle}deg, ${ringColor} ${matchAngle}deg, #eef0f2 0deg)`,
-            }}
-          >
-            <div className="grid h-full w-full place-items-center rounded-full bg-white">
-              <div className="translate-y-[1px] text-center">
-                <strong className="block text-[21px] font-medium leading-none text-ink">{job.match}%</strong>
-                <span className="mt-1 block text-[12px] font-normal leading-none text-ink">Match</span>
-              </div>
-            </div>
-          </div>
+          <MatchRing match={job.match} sizeClassName="h-[70px] w-[70px]" paddingClassName="p-[5px]" />
         </header>
 
-        <section className="grid gap-x-14 gap-y-3 border-b border-zinc-100 py-5 text-[13px] text-muted sm:grid-cols-2 lg:grid-cols-3">
+        <section className="grid gap-x-14 gap-y-3 border-b border-zinc-100 py-5 text-[13px] font-normal text-muted sm:grid-cols-2 lg:grid-cols-3">
           <span className="inline-flex items-center gap-2">
             <MapPin aria-hidden="true" className="h-4 w-4" />
             United States

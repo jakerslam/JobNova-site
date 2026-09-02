@@ -4,6 +4,7 @@ import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LikeIcon, LinkGlyphIcon, LocationDotIcon, SignalIcon } from "@/components/JobCardIcons";
+import { MatchRing } from "@/components/MatchRing";
 import type { Job } from "@/types/job";
 
 type JobCardProps = {
@@ -14,8 +15,6 @@ type JobCardProps = {
 };
 
 export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProps) {
-  const ringColor = job.match >= 90 ? "#9bea1f" : "#ffcf2f";
-  const matchAngle = job.match * 3.6;
   const jobHref = `/jobs/${job.status.toLowerCase()}/${job.id}`;
   const router = useRouter();
   const [copied, setCopied] = useState(false);
@@ -58,19 +57,7 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
           aria-label={`${job.match}% match`}
           className="grid h-[108px] w-[108px] shrink-0 place-items-center"
         >
-          <div
-            className="grid h-[82px] w-[82px] place-items-center rounded-full p-[6px]"
-            style={{
-              background: `conic-gradient(from ${360 - matchAngle}deg, ${ringColor} ${matchAngle}deg, #eef0f2 0deg)`,
-            }}
-          >
-            <div className="grid h-full w-full place-items-center rounded-full bg-white">
-              <div className="translate-y-[1px] text-center">
-                <strong className="block text-[21px] font-medium leading-none text-ink">{job.match}%</strong>
-                <span className="mt-1 block text-[12px] font-normal leading-none text-ink">Match</span>
-              </div>
-            </div>
-          </div>
+          <MatchRing match={job.match} />
         </div>
 
         <div className="min-w-0 flex-1">
