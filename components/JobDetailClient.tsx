@@ -89,7 +89,7 @@ export function JobDetailClient({ jobs, job }: JobDetailClientProps) {
   );
 
   return (
-    <main className="h-screen overflow-hidden bg-[#ececec] p-0 sm:p-4 lg:p-6">
+    <main className="h-screen overflow-hidden bg-[#ececec] px-0 py-0 sm:px-4 lg:px-6">
       <div className="mx-auto flex h-full max-w-[1375px] overflow-hidden bg-white shadow-soft sm:rounded-2xl lg:rounded-none">
         <div className="hidden h-full lg:block">
           <Sidebar />
