@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, Bot, Menu, X } from "lucide-react";
+import { BriefcaseBusiness, Bot, Menu, Undo2, X } from "lucide-react";
 import { InterviewPanel } from "@/components/InterviewPanel";
 import { JobCard } from "@/components/JobCard";
 import { Sidebar } from "@/components/Sidebar";
 import { TopNav } from "@/components/TopNav";
+import { TopMatchedIcon } from "@/components/TopMatchedIcon";
 import { useTemporaryLikes } from "@/hooks/useTemporaryLikes";
 import type { Job, JobStatus } from "@/types/job";
 
@@ -129,6 +130,24 @@ export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
 
           <div className="flex">
             <section className="min-w-0 flex-1 px-3 py-4 sm:px-6 xl:w-[870px] xl:max-w-[870px] xl:shrink-0 xl:px-[23px]">
+              <div className="mb-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-full bg-violet px-4 text-[12px] font-medium text-white shadow-sm transition-shadow hover:shadow-md lg:text-[13px]"
+                >
+                  <Undo2 aria-hidden="true" className="mr-2 h-4 w-4 shrink-0" />
+                  <span className="truncate">Change Job Preference</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="hidden h-8 shrink-0 items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 text-[12px] font-medium text-ink shadow-[0_4px_0_rgba(31,41,55,0.06),0_10px_18px_rgba(31,41,55,0.08)] transition-shadow hover:shadow-[0_5px_0_rgba(31,41,55,0.07),0_13px_22px_rgba(31,41,55,0.1)] sm:flex"
+                >
+                  <TopMatchedIcon className="h-4 w-4" />
+                  Top matched
+                </button>
+              </div>
+
               <div className="mb-3 flex items-center justify-between px-1 lg:hidden">
                 <div>
                   <p className="text-[12px] font-medium text-muted">Home page / Jobs {visibleJobs.length}</p>
