@@ -35,7 +35,7 @@ export function Sidebar() {
         <BrandLogo />
       </div>
 
-      <nav className="mt-5" aria-label="Dashboard navigation">
+      <nav className="mt-5 min-h-0 overflow-y-auto pb-4" aria-label="Dashboard navigation">
         {navGroups.map((group, groupIndex) => (
           <div
             key={group.map((item) => item.label).join("-")}

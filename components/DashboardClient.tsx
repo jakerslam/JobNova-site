@@ -170,7 +170,7 @@ export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
               </div>
             </section>
 
-            <div className="hidden h-full xl:block">
+            <div className="hidden h-full shrink-0 overflow-hidden xl:block">
               <InterviewPanel />
             </div>
           </div>

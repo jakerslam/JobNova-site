@@ -126,7 +126,7 @@ export function JobDetailClient({ jobs, job }: JobDetailClientProps) {
               <JobDetailView job={job} isLiked={likedJobIds.has(job.id)} onToggleLiked={toggleLiked} />
             </section>
 
-            <div className="hidden h-full xl:block">
+            <div className="hidden h-full shrink-0 overflow-hidden xl:block">
               <JobFitPanel job={job} hasPremium={hasPremium} />
             </div>
           </div>
