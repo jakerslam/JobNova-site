@@ -62,7 +62,7 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="pt-[6px]">
               <a
                 href={job.indeedUrl}
                 target="_blank"
@@ -74,7 +74,7 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
                   {job.title}
                 </h2>
               </a>
-              <div className="mt-1 space-y-1 text-[13px]">
+              <div className="mt-[2px] text-[13px] leading-5">
                 {job.companyLinkedInUrl ? (
                   <a
                     href={job.companyLinkedInUrl}
@@ -88,12 +88,12 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
                 ) : (
                   <span className="block font-normal text-zinc-400">{job.company}</span>
                 )}
-                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink">
-                  <LocationDotIcon className="h-4 w-[11px]" />
-                  <span>{job.location}</span>
-                  <span className="h-1 w-1 rounded-full bg-violet" />
-                  <SignalIcon className="h-[13px] w-[13px]" />
-                  <span>{job.workplace}</span>
+                <p className="mt-[2px] flex min-h-5 flex-wrap items-center gap-x-[7px] gap-y-1 text-[13px] font-normal leading-5 text-ink">
+                  <LocationDotIcon className="h-4 w-[11px] shrink-0" />
+                  <span className="leading-5">{job.location}</span>
+                  <span className="h-1 w-1 shrink-0 rounded-full bg-violet" />
+                  <SignalIcon className="h-[13px] w-[13px] shrink-0" />
+                  <span className="leading-5">{job.workplace}</span>
                 </p>
               </div>
             </div>
