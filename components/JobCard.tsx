@@ -62,13 +62,13 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="min-w-0 flex-1">
               <a
                 href={job.indeedUrl}
                 target="_blank"
                 rel="noreferrer"
                 onClick={(event) => event.stopPropagation()}
-                className="block max-w-[314px] text-left transition-colors hover:text-violet hover:underline"
+                className="block max-w-[calc(100%-16px)] text-left transition-colors hover:text-violet hover:underline"
               >
                 <h2 className="text-[24.8px] font-semibold leading-[32.35px] tracking-[-0.02em] text-ink">
                   {job.title}
