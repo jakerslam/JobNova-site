@@ -1,0 +1,37 @@
+{
+  "firstName": "First",
+  "lastName": "Last",
+  "email": "candidate@example.com",
+  "phone": "5551234567",
+  "location": "Salt Lake City, UT",
+  "resumePath": "/absolute/path/to/resume.docx",
+  "links": {
+    "linkedIn": "https://www.linkedin.com/in/example",
+    "portfolio": "https://example.com",
+    "github": "https://github.com/example"
+  },
+  "workExperience": [
+    {
+      "company": "Example Company",
+      "title": "Software Intern",
+      "location": "Remote",
+      "startDate": "2025-01",
+      "endDate": "2025-08",
+      "description": "Built responsive web application features with React and TypeScript."
+    }
+  ],
+  "education": [
+    {
+      "school": "Example University",
+      "degree": "Bachelor of Science",
+      "field": "Computer Science",
+      "startDate": "2022",
+      "endDate": "2026"
+    }
+  ],
+  "answers": {
+    "authorized_to_work_us": "Yes",
+    "requires_sponsorship": "No",
+    "available_start_date": "Immediately"
+  }
+}

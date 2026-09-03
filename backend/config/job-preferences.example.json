@@ -1,0 +1,10 @@
+{
+  "titles": ["Software Engineer Intern", "Frontend Developer", "Sales Development Representative"],
+  "locations": ["Salt Lake City, UT", "Remote"],
+  "remoteOptions": ["remote", "hybrid", "onsite"],
+  "salaryMin": 0,
+  "excludedCompanies": [],
+  "requiredKeywords": ["software", "frontend", "react", "typescript", "sales", "sdr"],
+  "excludedKeywords": ["senior", "principal", "staff"],
+  "maxApplicationsPerRun": 3
+}

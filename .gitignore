@@ -3,5 +3,14 @@ node_modules/
 out/
 dist/
 .env*
+!.env.example
+!backend/.env.example
 *.tsbuildinfo
 .DS_Store
+backend/node_modules/
+backend/dist/
+backend/data/applications.json
+backend/data/sessions/
+backend/data/resumes/
+backend/config/candidate-profile.json
+backend/config/job-preferences.json

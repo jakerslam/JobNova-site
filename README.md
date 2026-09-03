@@ -109,6 +109,12 @@ The project is currently using mock data, but it is organized for backend integr
 
 Future backend integrations can replace the mock service with database/API calls without changing the main UI contract.
 
+## Indeed Auto-Apply Backend
+
+The backend engineering test is scoped in [BACKEND_SRS.md](./BACKEND_SRS.md), with the first implementation slice under [backend/](./backend/).
+
+The backend module is CLI-first and handles private candidate configuration, encrypted Indeed session storage, manual verification checkpoints, and application status tracking without committing personal data or session artifacts.
+
 ## Logo Enrichment Plan
 
 Jobs support:
