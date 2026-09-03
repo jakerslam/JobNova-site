@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Job } from "@/types/job";
 
 type JobFitPanelProps = {
@@ -86,9 +87,9 @@ function LockedFitContent() {
         <div className="h-24 rounded-2xl bg-gradient-to-r from-zinc-100 via-violet/25 to-zinc-100" />
       </div>
       <div className="absolute inset-x-0 bottom-7 flex justify-center">
-        <button type="button" className="h-10 rounded-full bg-ink px-6 text-[13px] font-medium text-white">
+        <Link href="/subscription" className="grid h-10 place-items-center rounded-full bg-ink px-6 text-[13px] font-medium text-white transition-shadow hover:shadow-md">
           Upgrade to check
-        </button>
+        </Link>
       </div>
     </div>
   );

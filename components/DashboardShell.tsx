@@ -4,6 +4,7 @@ import { Bot, Menu, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import type { SidebarSection } from "@/components/Sidebar";
 import { TopNav } from "@/components/TopNav";
 import type { JobStatus } from "@/types/job";
 
@@ -13,6 +14,8 @@ type DashboardShellProps = {
   mobileTitle: string;
   rightPanel: ReactNode;
   children: ReactNode;
+  activeSection?: SidebarSection;
+  showJobTabs?: boolean;
 };
 
 export function DashboardShell({
@@ -21,6 +24,8 @@ export function DashboardShell({
   mobileTitle,
   rightPanel,
   children,
+  activeSection = "jobs",
+  showJobTabs = true,
 }: DashboardShellProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
@@ -29,7 +34,7 @@ export function DashboardShell({
     <main className="h-screen overflow-hidden bg-[#ececec] px-0 py-0 sm:px-4 lg:px-6">
       <div className="mx-auto flex h-full max-w-[1375px] overflow-hidden bg-white shadow-soft sm:rounded-2xl lg:rounded-none">
         <div className="hidden h-full lg:block">
-          <Sidebar />
+          <Sidebar activeSection={activeSection} />
         </div>
 
         {isMenuOpen ? (
@@ -43,7 +48,7 @@ export function DashboardShell({
                 </div>
               </div>
               <div className="min-h-0 flex-1">
-                <Sidebar />
+                <Sidebar activeSection={activeSection} />
               </div>
             </div>
           </div>
@@ -60,7 +65,7 @@ export function DashboardShell({
             </button>
           </div>
 
-          <TopNav activeStatus={activeStatus} counts={counts} />
+          {showJobTabs ? <TopNav activeStatus={activeStatus} counts={counts} /> : null}
 
           <div className="flex min-h-0 flex-1">
             <section className="h-full min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6 xl:w-[870px] xl:max-w-[870px] xl:shrink-0 xl:px-[23px]">

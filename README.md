@@ -44,6 +44,12 @@ npm run build
 - `/jobs/liked`
 - `/jobs/applied`
 - `/jobs/[status]/[jobId]`
+- `/mock-interview`
+- `/resume`
+- `/profile`
+- `/settings`
+- `/subscription`
+- `/credits`
 
 Example detail routes:
 
@@ -64,6 +70,7 @@ Example detail routes:
 - Resilient company logo rendering with external logo URL support and fallback placeholder
 - Premium/non-premium job-fit panel on the job detail page
 - Fixed dashboard rails: sidebar and right panel stay visible while the center content scrolls
+- Clickable sidebar navigation with routed page views for mock interview, resume, profile, settings, subscription, and credits
 
 ## Design Implementation
 
@@ -77,6 +84,7 @@ The UI was built from the supplied Figma screenshots and user-provided SVG asset
 - Job detail page with top action row, company/logo block, metadata grid, and interview prompt
 - Right rail for mock interview content on the feed
 - Right rail for job-fit analysis on detail pages
+- Shared dashboard shell across all sidebar pages
 
 The match ring is shared between the feed and detail pages through `components/MatchRing.tsx`, so styling and rendering behavior stay consistent.
 
