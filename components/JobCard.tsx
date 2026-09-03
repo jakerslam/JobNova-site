@@ -52,15 +52,15 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
         isSelected ? "ring-2 ring-violet" : "ring-1 ring-transparent"
       }`}
     >
-      <div className="flex min-h-[124px] items-center gap-1">
+      <div className="grid min-h-[124px] grid-cols-[92px_minmax(0,1fr)] items-center gap-x-4 gap-y-2 py-4 sm:grid-cols-[108px_minmax(0,1fr)] sm:gap-x-1 sm:py-0">
         <div
           aria-label={`${job.match}% match`}
-          className="grid h-[108px] w-[108px] shrink-0 place-items-center"
+          className="grid h-[92px] w-[92px] shrink-0 place-items-center sm:h-[108px] sm:w-[108px]"
         >
           <MatchRing match={job.match} />
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 self-center">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <a
@@ -70,35 +70,13 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
                 onClick={(event) => event.stopPropagation()}
                 className="block max-w-[calc(100%-16px)] text-left transition-colors hover:text-violet hover:underline"
               >
-                <h2 className="text-[24.8px] font-semibold leading-[32.35px] tracking-[-0.02em] text-ink">
+                <h2 className="text-[22px] font-semibold leading-[28px] tracking-[-0.02em] text-ink sm:text-[24.8px] sm:leading-[32.35px]">
                   {job.title}
                 </h2>
               </a>
-              <div className="mt-[2px] text-[13px] leading-5">
-                {job.companyLinkedInUrl ? (
-                  <a
-                    href={job.companyLinkedInUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(event) => event.stopPropagation()}
-                    className="inline-flex w-fit items-center font-normal text-zinc-400 transition-colors hover:text-violet hover:underline"
-                  >
-                    {job.company}
-                  </a>
-                ) : (
-                  <span className="block font-normal text-zinc-400">{job.company}</span>
-                )}
-                <p className="mt-[2px] flex min-h-5 flex-wrap items-center gap-x-[7px] gap-y-1 text-[13px] font-normal leading-5 text-ink">
-                  <LocationDotIcon className="h-4 w-[11px] shrink-0" />
-                  <span className="leading-5">{job.location}</span>
-                  <span className="h-1 w-1 shrink-0 rounded-full bg-violet" />
-                  <SignalIcon className="h-[13px] w-[13px] shrink-0" />
-                  <span className="leading-5">{job.workplace}</span>
-                </p>
-              </div>
             </div>
 
-            <div className="flex gap-3 text-ink">
+            <div className="flex shrink-0 gap-3 text-ink">
               <button
                 type="button"
                 aria-label={copied ? "Job link copied" : "Copy job link"}
@@ -121,7 +99,29 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
               </button>
             </div>
           </div>
+        </div>
 
+        <div className="col-span-2 min-w-0 text-[13px] leading-5 sm:col-span-1 sm:col-start-2 sm:mt-[-16px]">
+          {job.companyLinkedInUrl ? (
+            <a
+              href={job.companyLinkedInUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              className="inline-flex w-fit items-center font-normal text-zinc-400 transition-colors hover:text-violet hover:underline"
+            >
+              {job.company}
+            </a>
+          ) : (
+            <span className="block font-normal text-zinc-400">{job.company}</span>
+          )}
+          <p className="mt-[2px] flex min-h-5 flex-wrap items-center gap-x-[7px] gap-y-1 text-[13px] font-normal leading-5 text-ink">
+            <LocationDotIcon className="h-4 w-[11px] shrink-0" />
+            <span className="leading-5">{job.location}</span>
+            <span className="h-1 w-1 shrink-0 rounded-full bg-violet" />
+            <SignalIcon className="h-[13px] w-[13px] shrink-0" />
+            <span className="leading-5">{job.workplace}</span>
+          </p>
         </div>
       </div>
 
@@ -133,12 +133,12 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
         ))}
       </div>
 
-      <div className="flex min-h-[59px] items-center justify-between gap-4 border-t border-zinc-100">
-        <p className="text-[12px] font-normal text-ink">
+      <div className="flex min-h-[59px] flex-col justify-center gap-3 border-t border-zinc-100 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] font-normal text-ink">
           <span className="rounded-full bg-violet/15 px-3 py-1 text-violet">{job.posted}</span>
-          <span className="ml-3">{job.applicants} applicants</span>
+          <span>{job.applicants} applicants</span>
         </p>
-        <div className="flex shrink-0 gap-2">
+        <div className="grid grid-cols-[minmax(96px,1fr)_minmax(150px,1.3fr)] gap-2 sm:flex sm:shrink-0">
           <button
             type="button"
             onClick={(event) => {
