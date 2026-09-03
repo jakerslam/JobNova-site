@@ -45,26 +45,26 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
   }
 
   return (
-    <article>
-      <div className="mb-[22px] flex h-10 items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
+    <article className="min-w-0 overflow-hidden">
+      <div className="mb-[22px] flex flex-wrap items-center justify-between gap-3 sm:h-10 sm:flex-nowrap sm:gap-4">
+        <div className="flex min-w-0 items-center gap-2">
           <Link
             href={`/jobs/${job.status.toLowerCase()}`}
-            className="inline-flex h-8 w-12 items-center justify-center rounded-full bg-white text-ink shadow-sm transition-shadow hover:shadow-md"
+            className="inline-flex h-8 w-12 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-sm transition-shadow hover:shadow-md"
             aria-label="Back to jobs"
           >
             <ArrowLeft aria-hidden="true" className="h-5 w-5" />
           </Link>
-          <div className="inline-flex h-8 items-center rounded-full bg-violet px-4 text-[13px] font-medium text-white">
+          <div className="inline-flex h-8 min-w-0 items-center rounded-full bg-violet px-4 text-[13px] font-medium text-white">
             {job.applicants} applicants
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:flex-none">
           <button
             type="button"
             aria-label={copied ? "Job link copied" : "Copy job link"}
             onClick={copyJobLink}
-            className="grid h-9 w-9 place-items-center rounded-full text-ink transition-shadow hover:shadow-sm"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink transition-shadow hover:shadow-sm"
           >
             {copied ? (
               <Check aria-hidden="true" className="h-4 w-4 text-violet" />
@@ -76,7 +76,7 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
             type="button"
             aria-label={isLiked ? "Unlike job" : "Like job"}
             onClick={() => onToggleLiked(job.id)}
-            className="grid h-9 w-9 place-items-center rounded-full text-ink transition-shadow hover:shadow-sm"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink transition-shadow hover:shadow-sm"
           >
             <Heart aria-hidden="true" className={`h-5 w-5 ${isLiked ? "fill-violet text-violet" : ""}`} />
           </button>
@@ -84,81 +84,89 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
             href={job.indeedUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-black px-5 text-[14px] font-medium text-white"
+            className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-black px-4 text-[14px] font-medium text-white sm:flex-none sm:px-5"
           >
-            Apply Now
-            <ExternalLink aria-hidden="true" className="h-4 w-4" />
+            <span className="truncate">Apply Now</span>
+            <ExternalLink aria-hidden="true" className="h-4 w-4 shrink-0" />
           </a>
         </div>
       </div>
 
-      <div className="rounded-xl bg-white px-4 py-5 shadow-soft sm:px-6 sm:py-6">
-        <header className="flex flex-col gap-5 border-b border-zinc-100 pb-5 md:flex-row md:items-start md:justify-between">
-          <div className="flex gap-5">
-            <CompanyLogo company={job.company} logoUrl={job.companyLogoUrl} />
-            <div className="min-w-0">
-              <div className="mb-1 w-fit rounded-full bg-violet/15 px-4 py-1 text-[12px] font-medium leading-5 text-violet">
-                {job.posted}
-              </div>
-              <a
-                href={job.indeedUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="block transition-colors hover:text-violet hover:underline"
-              >
-                <h1 className="text-[22px] font-semibold leading-[28px] tracking-[-0.02em] text-ink">{job.title}</h1>
-              </a>
-              <div className="mt-[2px] text-[13px] leading-5">
-                {job.companyLinkedInUrl ? (
-                  <a
-                    href={job.companyLinkedInUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-zinc-400 transition-colors hover:text-violet hover:underline"
-                  >
-                    Company name
-                  </a>
-                ) : (
-                  <span className="text-zinc-400">Company name</span>
-                )}
-                <p className="mt-[3px] flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-normal text-ink">
-                  <MapPin aria-hidden="true" className="h-[14px] w-[14px] shrink-0" />
-                  <span>{cityLabel}</span>
-                  <span className="h-1 w-1 rounded-full bg-violet" />
-                  <span>{job.posted.replace("hours", "days").replace("hour", "day")}</span>
-                  <span className="h-1 w-1 rounded-full bg-violet" />
-                  <Signal aria-hidden="true" className="h-[13px] w-[13px]" />
-                  <span>{job.workplace}</span>
-                </p>
+      <div className="min-w-0 overflow-hidden rounded-xl bg-white px-4 py-5 shadow-soft sm:px-6 sm:py-6">
+        <header className="border-b border-zinc-100 pb-5">
+          <div className="flex min-w-0 items-center justify-between gap-3 md:items-start">
+            <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-5">
+              <CompanyLogo company={job.company} logoUrl={job.companyLogoUrl} className="h-16 w-16 sm:h-20 sm:w-20" />
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 w-fit rounded-full bg-violet/15 px-4 py-1 text-[12px] font-medium leading-5 text-violet">
+                  {job.posted}
+                </div>
+                <a
+                  href={job.indeedUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block transition-colors hover:text-violet hover:underline"
+                >
+                  <h1 className="text-[22px] font-semibold leading-[28px] tracking-[-0.02em] text-ink">{job.title}</h1>
+                </a>
+                <div className="mt-[2px] text-[13px] leading-5">
+                  {job.companyLinkedInUrl ? (
+                    <a
+                      href={job.companyLinkedInUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-zinc-400 transition-colors hover:text-violet hover:underline"
+                    >
+                      Company name
+                    </a>
+                  ) : (
+                    <span className="text-zinc-400">Company name</span>
+                  )}
+                </div>
               </div>
             </div>
+
+            <MatchRing
+              match={job.match}
+              className="shrink-0"
+              sizeClassName="h-[78px] w-[78px] md:h-[70px] md:w-[70px]"
+              paddingClassName="p-[6px] md:p-[5px]"
+            />
           </div>
 
-          <MatchRing match={job.match} sizeClassName="h-[70px] w-[70px]" paddingClassName="p-[5px]" />
+          <p className="mt-4 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-normal text-ink sm:ml-[100px]">
+            <MapPin aria-hidden="true" className="h-[14px] w-[14px] shrink-0" />
+            <span className="min-w-0">{cityLabel}</span>
+            <span className="h-1 w-1 rounded-full bg-violet" />
+            <span>{job.posted.replace("hours", "days").replace("hour", "day")}</span>
+            <span className="h-1 w-1 rounded-full bg-violet" />
+            <Signal aria-hidden="true" className="h-[13px] w-[13px]" />
+            <span>{job.workplace}</span>
+          </p>
         </header>
 
-        <section className="grid gap-x-14 gap-y-3 border-b border-zinc-100 py-5 text-[13px] font-normal text-muted sm:grid-cols-2 lg:grid-cols-3">
-          <span className="inline-flex items-center gap-2">
+        <section className="flex flex-wrap gap-x-8 gap-y-3 border-b border-zinc-100 py-5 text-[13px] font-normal text-muted sm:gap-x-14">
+          <span className="inline-flex items-center gap-2 whitespace-nowrap">
             <MapPin aria-hidden="true" className="h-4 w-4" />
             United States
           </span>
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 whitespace-nowrap">
             <BriefcaseBusinessIcon aria-hidden="true" className="h-4 w-4" />
             Internship
           </span>
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 whitespace-nowrap">
             <Radio aria-hidden="true" className="h-4 w-4" />
             {job.workplace}
           </span>
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 whitespace-nowrap">
             <Clock3 aria-hidden="true" className="h-4 w-4" />
             {job.skills.find((skill) => skill.includes("years")) ?? "5+ years exp"}
           </span>
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 whitespace-nowrap">
             <Building2 aria-hidden="true" className="h-4 w-4" />
             {job.salary}
           </span>
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 whitespace-nowrap">
             <Signal aria-hidden="true" className="h-4 w-4" />
             {job.seniority}
           </span>

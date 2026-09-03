@@ -77,7 +77,7 @@ function PremiumFitContent({ job }: { job: Job }) {
 
 function LockedFitContent() {
   return (
-    <div className="relative min-h-[520px] overflow-hidden rounded-lg bg-white">
+    <div className="relative min-h-[520px] flex-1 overflow-hidden rounded-lg bg-white">
       <div className="absolute inset-x-5 top-7 space-y-5 blur-[10px]">
         <div className="h-14 rounded-full bg-gradient-to-r from-violet/35 via-sky-200 to-violet/20" />
         <div className="h-24 rounded-2xl bg-gradient-to-br from-zinc-100 via-violet/20 to-sky-100" />
@@ -96,12 +96,18 @@ function LockedFitContent() {
 
 export function JobFitPanel({ job, hasPremium }: JobFitPanelProps) {
   return (
-    <aside className="h-full w-[285px] shrink-0 overflow-y-auto bg-zinc-50 px-[22px] py-7">
-      <div className="rounded-lg bg-white px-5 py-6 shadow-sm">
+    <aside className="flex h-full w-full shrink-0 flex-col overflow-y-auto bg-zinc-50 px-[22px] py-7 xl:w-[285px]">
+      <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-white px-5 py-6 shadow-sm">
         <h2 className="mb-5 text-center text-[13px] font-semibold leading-5 text-ink">
           Why is this job a good fit for me?
         </h2>
-        {hasPremium ? <PremiumFitContent job={job} /> : <LockedFitContent />}
+        {hasPremium ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <PremiumFitContent job={job} />
+          </div>
+        ) : (
+          <LockedFitContent />
+        )}
       </div>
     </aside>
   );

@@ -34,13 +34,17 @@ export function DashboardShell({
 
         {isMenuOpen ? (
           <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setIsMenuOpen(false)}>
-            <div className="h-full w-[236px] bg-white" onClick={(event) => event.stopPropagation()}>
-              <div className="flex justify-end px-4 pt-4">
-                <button type="button" aria-label="Close menu" onClick={() => setIsMenuOpen(false)}>
-                  <X className="h-5 w-5" />
-                </button>
+            <div className="flex h-dvh max-h-dvh w-[236px] flex-col bg-white" onClick={(event) => event.stopPropagation()}>
+              <div className="shrink-0 px-4 pt-4">
+                <div className="flex justify-end">
+                  <button type="button" aria-label="Close menu" onClick={() => setIsMenuOpen(false)}>
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
-              <Sidebar />
+              <div className="min-h-0 flex-1">
+                <Sidebar />
+              </div>
             </div>
           </div>
         ) : null}
@@ -71,15 +75,15 @@ export function DashboardShell({
       {isRightPanelOpen ? (
         <div className="fixed inset-0 z-50 bg-black/35 p-4 xl:hidden" onClick={() => setIsRightPanelOpen(false)}>
           <div
-            className="ml-auto h-full max-w-[340px] overflow-y-auto rounded-2xl bg-zinc-50"
+            className="ml-auto flex h-full max-h-full w-full max-w-[340px] flex-col overflow-hidden rounded-2xl bg-zinc-50"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex justify-end px-4 pt-4">
+            <div className="flex shrink-0 justify-end px-4 pt-4">
               <button type="button" aria-label="Close right panel" onClick={() => setIsRightPanelOpen(false)}>
                 <X className="h-5 w-5" />
               </button>
             </div>
-            {rightPanel}
+            <div className="min-h-0 flex-1">{rightPanel}</div>
           </div>
         </div>
       ) : null}

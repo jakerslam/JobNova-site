@@ -2,7 +2,7 @@ import { Bot, Sparkles } from "lucide-react";
 
 export function InterviewPanel() {
   return (
-    <aside className="h-full w-[285px] shrink-0 overflow-y-auto bg-zinc-50 px-6 py-7">
+    <aside className="flex h-full w-full shrink-0 flex-col overflow-y-auto bg-zinc-50 px-6 py-7 xl:w-[285px]">
       <div className="mb-7 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm">
         <Sparkles aria-hidden="true" className="h-5 w-5 text-ink" />
       </div>
@@ -14,7 +14,7 @@ export function InterviewPanel() {
         Struggling with interview nerves or unsure how to prepare? Let our cutting-edge AI mock interviews help you shine!
       </p>
 
-      <div className="space-y-5 py-6 text-[13px] leading-5 text-ink">
+      <div className="min-h-0 flex-1 space-y-5 py-6 text-[13px] leading-5 text-ink">
         <section>
           <h3 className="mb-2 font-semibold">Why Choose Our AI Mock Interviews?</h3>
           <p className="font-semibold">Job-Specific Simulations:</p>
@@ -30,7 +30,7 @@ export function InterviewPanel() {
         </section>
       </div>
 
-      <button type="button" className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-ink text-[13px] font-semibold text-white">
+      <button type="button" className="mt-auto flex h-12 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-ink text-[13px] font-semibold text-white">
         <Bot aria-hidden="true" className="h-4 w-4" />
         Mock Interview
       </button>
