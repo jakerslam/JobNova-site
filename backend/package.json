@@ -6,19 +6,25 @@
   "scripts": {
     "indeed:login": "tsx src/cli.ts login",
     "indeed:check-session": "tsx src/cli.ts check-session",
+    "indeed:import-session": "tsx src/cli.ts import-session",
     "indeed:status": "tsx src/cli.ts status",
     "indeed:search": "tsx src/cli.ts search",
     "indeed:apply": "tsx src/cli.ts apply",
     "indeed:resume": "tsx src/cli.ts resume",
     "indeed:queue-url": "tsx src/cli.ts queue-url",
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node --enable-source-maps dist/server.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "chrome-remote-interface": "^0.34.0",
     "dotenv": "^17.2.2",
     "playwright": "^1.55.0",
     "tsx": "^4.20.5"
   },
   "devDependencies": {
+    "@types/chrome-remote-interface": "^0.34.0",
     "@types/node": "^20.19.11",
     "typescript": "^5.9.2"
   }

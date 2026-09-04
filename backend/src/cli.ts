@@ -4,6 +4,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { ApplicationStore } from "./storage/ApplicationStore.js";
 import { loadCandidateProfile, loadJobPreferences } from "./config/loadConfig.js";
 import { IndeedApplicationRunner } from "./indeed/IndeedApplicationRunner.js";
+import { importIndeedSessionFromChrome } from "./indeed/IndeedBrowserImport.js";
 import { IndeedSessionManager } from "./indeed/IndeedSessionManager.js";
 import { buildIndeedSearchUrls, collectIndeedJobs } from "./indeed/IndeedSearch.js";
 
@@ -13,6 +14,10 @@ const args = process.argv.slice(3);
 function getArg(name: string) {
   const prefix = `--${name}=`;
   return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+}
+
+function getSessionName() {
+  return getArg("session-name") ?? process.env.INDEED_SESSION_NAME ?? "default";
 }
 
 function printJson(value: unknown) {
@@ -29,7 +34,7 @@ async function waitForEnter(message: string) {
 }
 
 async function login() {
-  const manager = new IndeedSessionManager();
+  const manager = new IndeedSessionManager(undefined, getSessionName());
   const session = await manager.openFreshSession();
 
   try {
@@ -40,12 +45,12 @@ async function login() {
     await manager.save(session.context);
     console.log("Indeed session saved.");
   } finally {
-    await session.browser.close();
+    await session.close();
   }
 }
 
 async function checkSession() {
-  const manager = new IndeedSessionManager();
+  const manager = new IndeedSessionManager(undefined, getSessionName());
   const result = await manager.checkSession();
 
   if (result.ok) {
@@ -55,6 +60,15 @@ async function checkSession() {
 
   printJson(result);
   process.exitCode = 1;
+}
+
+async function importSession() {
+  const cdpUrl = getArg("cdp-url") ?? process.env.CHROME_CDP_URL;
+  const result = await importIndeedSessionFromChrome(cdpUrl, getSessionName());
+  printJson({
+    ...result,
+    message: "Encrypted Indeed-only session state imported from connected Chrome.",
+  });
 }
 
 async function status() {
@@ -67,7 +81,8 @@ async function search() {
   const urls = buildIndeedSearchUrls(preferences);
 
   if (args.includes("--collect")) {
-    const manager = new IndeedSessionManager();
+    const sessionName = getSessionName();
+    const manager = new IndeedSessionManager(undefined, sessionName);
     const store = new ApplicationStore();
     const session = await manager.openRestoredSession();
 
@@ -80,7 +95,7 @@ async function search() {
       });
       return;
     } finally {
-      await session.browser.close();
+      await session.close();
     }
   }
 
@@ -93,7 +108,7 @@ async function search() {
 
 async function apply() {
   const profile = await loadCandidateProfile();
-  const runner = new IndeedApplicationRunner(profile);
+  const runner = new IndeedApplicationRunner(profile, undefined, new IndeedSessionManager(undefined, getSessionName()));
   const preferences = await loadJobPreferences();
 
   if (args.includes("--run")) {
@@ -123,7 +138,7 @@ async function resume() {
   }
 
   const profile = await loadCandidateProfile();
-  const runner = new IndeedApplicationRunner(profile);
+  const runner = new IndeedApplicationRunner(profile, undefined, new IndeedSessionManager(undefined, getSessionName()));
   const result = await runner.applyToRecord(record);
 
   printJson({ result });
@@ -159,6 +174,9 @@ async function main() {
     case "check-session":
       await checkSession();
       break;
+    case "import-session":
+      await importSession();
+      break;
     case "status":
       await status();
       break;
@@ -175,7 +193,9 @@ async function main() {
       await queueUrl();
       break;
     default:
-      console.log("Usage: tsx src/cli.ts <login|check-session|status|search|apply|resume|queue-url>");
+      console.log(
+        "Usage: tsx src/cli.ts <login|check-session|import-session|status|search|apply|resume|queue-url> [--session-name=default]",
+      );
       process.exitCode = 1;
   }
 }

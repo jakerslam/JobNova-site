@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
+import { IndeedIntegrationPanel } from "@/components/IndeedIntegrationPanel";
 import { InterviewPanel } from "@/components/InterviewPanel";
 import type { SidebarSection } from "@/components/Sidebar";
 import { getJobs } from "@/services/jobs";
@@ -209,22 +210,25 @@ export function SettingsContent() {
   ] as const;
 
   return (
-    <div className="rounded-[13px] bg-white px-5 py-5 shadow-soft sm:px-6">
-      <div className="space-y-4">
-        {settings.map(([title, detail, Icon]) => (
-          <div key={title} className="flex items-center justify-between gap-4 border-b border-zinc-100 pb-4 last:border-0 last:pb-0">
-            <div className="flex items-start gap-3">
-              <Icon className="mt-1 h-5 w-5 text-ink" />
-              <div>
-                <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
-                <p className="mt-1 text-[13px] leading-5 text-muted">{detail}</p>
+    <div className="space-y-5">
+      <IndeedIntegrationPanel />
+      <div className="rounded-[13px] bg-white px-5 py-5 shadow-soft sm:px-6">
+        <div className="space-y-4">
+          {settings.map(([title, detail, Icon]) => (
+            <div key={title} className="flex items-center justify-between gap-4 border-b border-zinc-100 pb-4 last:border-0 last:pb-0">
+              <div className="flex items-start gap-3">
+                <Icon className="mt-1 h-5 w-5 text-ink" />
+                <div>
+                  <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
+                  <p className="mt-1 text-[13px] leading-5 text-muted">{detail}</p>
+                </div>
               </div>
+              <span className="h-7 w-12 shrink-0 rounded-full bg-violet p-1">
+                <span className="block h-5 w-5 translate-x-5 rounded-full bg-white" />
+              </span>
             </div>
-            <span className="h-7 w-12 shrink-0 rounded-full bg-violet p-1">
-              <span className="block h-5 w-5 translate-x-5 rounded-full bg-white" />
-            </span>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -19,6 +19,11 @@ export class SessionStore {
   async save(context: BrowserContext, sessionName?: string) {
     await mkdir(this.sessionDir, { recursive: true });
     const storageState = await context.storageState();
+    await this.saveState(storageState, sessionName);
+  }
+
+  async saveState(storageState: BrowserStorageState, sessionName?: string) {
+    await mkdir(this.sessionDir, { recursive: true });
     const encrypted = encryptText(JSON.stringify(storageState, null, 2));
     await writeFile(this.getSessionPath(sessionName), encrypted, "utf8");
   }

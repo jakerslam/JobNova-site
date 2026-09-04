@@ -1,5 +1,17 @@
 import type { Page } from "playwright";
 import type { JobPreferences, JobSearchResult } from "../workflow/types.js";
+import type { ManualActionReason } from "../workflow/statuses.js";
+import { detectManualCheckpoint } from "./IndeedManualCheck.js";
+
+export class IndeedSearchManualCheckpointError extends Error {
+  constructor(
+    readonly reason: ManualActionReason,
+    message: string,
+  ) {
+    super(message);
+    this.name = "IndeedSearchManualCheckpointError";
+  }
+}
 
 export function buildIndeedSearchUrls(preferences: JobPreferences) {
   const urls: string[] = [];
@@ -50,6 +62,11 @@ export async function collectIndeedJobs(page: Page, preferences: JobPreferences)
   for (const searchUrl of searchUrls) {
     await page.goto(searchUrl, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1200);
+
+    const manualCheck = await detectManualCheckpoint(page);
+    if (!manualCheck.ok) {
+      throw new IndeedSearchManualCheckpointError(manualCheck.reason, manualCheck.message);
+    }
 
     const results = await page.evaluate(() => {
       const anchors = Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href*='/rc/clk'], a[href*='/viewjob'], a[data-jk]"));

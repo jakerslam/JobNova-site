@@ -90,14 +90,21 @@ export class IndeedApplicationRunner {
         failureReason: "Stopped after one safe application step for manual review.",
       });
     } catch (error) {
+      const missingSession =
+        error instanceof Error && "code" in error && error.code === "ENOENT";
+
       return this.store.update(record.id, {
         status: "manual_action_required",
         lastStep: "session_or_runner_exception",
         manualActionReason: "login",
-        failureReason: error instanceof Error ? error.message : String(error),
+        failureReason: missingSession
+          ? "No saved Indeed session exists. Complete and save the login handoff first."
+          : error instanceof Error
+            ? error.message
+            : String(error),
       });
     } finally {
-      await session?.browser.close();
+      await session?.close();
     }
   }
 

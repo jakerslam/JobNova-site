@@ -1,38 +1,56 @@
 import { chromium } from "playwright";
-import type { Browser, BrowserContext, Page } from "playwright";
+import type { BrowserContext, Page } from "playwright";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import { SessionStore } from "../storage/SessionStore.js";
 import { detectManualCheckpoint } from "./IndeedManualCheck.js";
 
 type ManagedSession = {
-  browser: Browser;
   context: BrowserContext;
   page: Page;
+  close: () => Promise<void>;
 };
+
+type BrowserStorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
 
 function shouldRunHeadless() {
   return process.env.INDEED_HEADLESS === "true";
 }
 
+function getBrowserChannel() {
+  return process.env.INDEED_BROWSER_CHANNEL || undefined;
+}
+
+function shouldUsePersistentProfile() {
+  return process.env.INDEED_USE_PERSISTENT_PROFILE === "true";
+}
+
+function shouldRestoreWithPersistentProfile() {
+  return process.env.INDEED_RESTORE_WITH_PERSISTENT_PROFILE === "true";
+}
+
+function getPersistentProfileDir(sessionName: string) {
+  const root = process.env.INDEED_BROWSER_PROFILE_DIR ?? "./data/browser-profile";
+  return path.resolve(root, sessionName);
+}
+
 export class IndeedSessionManager {
-  constructor(private readonly sessionStore = new SessionStore()) {}
+  constructor(
+    private readonly sessionStore = new SessionStore(),
+    private readonly sessionName = process.env.INDEED_SESSION_NAME ?? "default",
+  ) {}
 
   async openFreshSession(): Promise<ManagedSession> {
-    const browser = await chromium.launch({ headless: shouldRunHeadless() });
-    const context = await browser.newContext();
-    const page = await context.newPage();
-    return { browser, context, page };
+    return this.openSession(undefined, shouldUsePersistentProfile());
   }
 
   async openRestoredSession(): Promise<ManagedSession> {
-    const storageState = await this.sessionStore.load();
-    const browser = await chromium.launch({ headless: shouldRunHeadless() });
-    const context = await browser.newContext({ storageState });
-    const page = await context.newPage();
-    return { browser, context, page };
+    const storageState = await this.sessionStore.load(this.sessionName);
+    return this.openSession(storageState, shouldRestoreWithPersistentProfile());
   }
 
   async save(context: BrowserContext) {
-    await this.sessionStore.save(context);
+    await this.sessionStore.save(context, this.sessionName);
   }
 
   async checkSession() {
@@ -48,7 +66,33 @@ export class IndeedSessionManager {
 
       return { ok: true as const };
     } finally {
-      await session.browser.close();
+      await session.close();
     }
+  }
+
+  private async openSession(storageState?: BrowserStorageState, usePersistentProfile = false): Promise<ManagedSession> {
+    if (usePersistentProfile) {
+      const profileDir = getPersistentProfileDir(this.sessionName);
+      await mkdir(profileDir, { recursive: true });
+      const context = await chromium.launchPersistentContext(profileDir, {
+        channel: getBrowserChannel(),
+        headless: shouldRunHeadless(),
+      });
+      const page = context.pages()[0] ?? (await context.newPage());
+
+      return { context, page, close: () => context.close() };
+    }
+
+    const browser = await chromium.launch({ channel: getBrowserChannel(), headless: shouldRunHeadless() });
+    const context = await browser.newContext(storageState ? { storageState } : undefined);
+    const page = await context.newPage();
+
+    return {
+      context,
+      page,
+      close: async () => {
+        await browser.close();
+      },
+    };
   }
 }
