@@ -69,47 +69,62 @@
       }
 
       if (!isApplicationPage()) {
-        const applyResolution = await waitForApplyTarget();
-        if (applyResolution.checkpoint) {
-          await pause(command, applyResolution.checkpoint.reason, applyResolution.checkpoint.message, `manual_checkpoint_${step}`);
-          completedCommands.add(command.id);
-          return;
-        }
+        if (command.lastStep === "apply_clicked") {
+          const handoff = await waitForApplicationHandoff(command);
+          if (handoff === "transferred") return;
+          if (handoff === "not_detected") {
+            await pause(
+              command,
+              "review_required",
+              "Indeed did not expose a recognizable application form after Apply was clicked.",
+              "application_form_not_detected",
+            );
+            completedCommands.add(command.id);
+            return;
+          }
+        } else {
+          const applyResolution = await waitForApplyTarget();
+          if (applyResolution.checkpoint) {
+            await pause(command, applyResolution.checkpoint.reason, applyResolution.checkpoint.message, `manual_checkpoint_${step}`);
+            completedCommands.add(command.id);
+            return;
+          }
 
-        const applyTarget = applyResolution.target;
-        if (!applyTarget) {
-          await report(command, {
-            status: "skipped",
-            lastStep: "apply_button_not_found",
-            failureReason: "No recognizable Indeed-hosted Apply button was found.",
-          });
-          completedCommands.add(command.id);
-          return;
-        }
+          const applyTarget = applyResolution.target;
+          if (!applyTarget) {
+            await report(command, {
+              status: "skipped",
+              lastStep: "apply_button_not_found",
+              failureReason: "No recognizable Indeed-hosted Apply button was found.",
+            });
+            completedCommands.add(command.id);
+            return;
+          }
 
-        if (applyTarget.external) {
-          await report(command, {
-            status: "skipped",
-            lastStep: "external_application",
-            failureReason: "This posting sends applications to an external employer site, which is outside this workflow.",
-          });
-          completedCommands.add(command.id);
-          return;
-        }
+          if (applyTarget.external) {
+            await report(command, {
+              status: "skipped",
+              lastStep: "external_application",
+              failureReason: "This posting sends applications to an external employer site, which is outside this workflow.",
+            });
+            completedCommands.add(command.id);
+            return;
+          }
 
-        await report(command, { status: "in_progress", lastStep: "apply_clicked" });
-        await activateTarget(command, applyTarget.element);
-        const handoff = await waitForApplicationHandoff(command);
-        if (handoff === "transferred") return;
-        if (handoff === "not_detected") {
-          await pause(
-            command,
-            "review_required",
-            "Indeed did not expose a recognizable application form after Apply was clicked.",
-            "application_form_not_detected",
-          );
-          completedCommands.add(command.id);
-          return;
+          await report(command, { status: "in_progress", lastStep: "apply_clicked" });
+          await activateTarget(command, applyTarget.element);
+          const handoff = await waitForApplicationHandoff(command);
+          if (handoff === "transferred") return;
+          if (handoff === "not_detected") {
+            await pause(
+              command,
+              "review_required",
+              "Indeed did not expose a recognizable application form after Apply was clicked.",
+              "application_form_not_detected",
+            );
+            completedCommands.add(command.id);
+            return;
+          }
         }
       }
 

@@ -105,6 +105,7 @@ async function executeCompanionCommand(command) {
     returnTabId: activeTab?.id && isJobNovaUrl(activeTab.url || "") ? activeTab.id : null,
     previousTabIds: [],
     lastSentByTab: {},
+    initialApplyInFlight: false,
     heartbeatTimer: null,
   };
   runningCompanionCommands.set(command.id, state);
@@ -125,11 +126,135 @@ async function executeCompanionCommand(command) {
     state.tabId = tab.id;
     await saveActiveCommands();
     await startCompanionHeartbeat(state, false);
-    await sendRunnerCommand(state, tab.id, tab.url || command.jobUrl);
+    state.initialApplyInFlight = true;
+    await saveActiveCommands();
+    const started = await startIndeedApplication(state, tab.id).finally(async () => {
+      state.initialApplyInFlight = false;
+      await saveActiveCommands();
+    });
+    if (!started) {
+      await sendRunnerCommand(state, tab.id, tab.url || command.jobUrl);
+    }
     return { ok: true, commandId: command.id, tabId: tab.id };
   } catch (error) {
     await stopCompanionCommand(command.id, "extension_execution_error", error instanceof Error ? error.message : String(error));
     throw error;
+  }
+}
+
+async function startIndeedApplication(state, tabId) {
+  const target = await waitForIndeedApplyTarget(tabId);
+  if (!target) return false;
+
+  if (target.external) {
+    await reportCompanionResult(state.command, {
+      status: "skipped",
+      lastStep: "external_application",
+      failureReason: "This posting directs applications to an external employer site.",
+    });
+    return true;
+  }
+
+  await dispatchDebuggerClick(tabId, target.x, target.y);
+  const payload = await reportCompanionResult(state.command, {
+    status: "in_progress",
+    lastStep: "apply_clicked",
+  });
+  if (payload.command) {
+    state.command = payload.command;
+    await saveActiveCommands();
+  }
+
+  // Some Indeed flows replace the job content in-place. A continuation tab is
+  // handled by webNavigation; this resumes either surface after the trusted
+  // initial click has had a moment to take effect.
+  setTimeout(() => {
+    chrome.tabs.get(state.tabId).then((currentTab) => sendRunnerCommand(
+      state,
+      currentTab.id,
+      currentTab.url || state.command.jobUrl,
+      true,
+    )).catch((error) => stopCompanionCommand(
+      state.command.id,
+      "extension_receiver_error",
+      error instanceof Error ? error.message : String(error),
+    ));
+  }, 1_000);
+  return true;
+}
+
+async function waitForIndeedApplyTarget(tabId, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const target = await readIndeedApplyTarget(tabId);
+    if (target) return target;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return undefined;
+}
+
+async function readIndeedApplyTarget(tabId) {
+  const target = { tabId };
+  let attached = false;
+  try {
+    await chrome.debugger.attach(target, "1.3");
+    attached = true;
+    const result = await chrome.debugger.sendCommand(target, "Runtime.evaluate", {
+      returnByValue: true,
+      expression: `(() => {
+        const visible = (element) => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+        };
+        const label = (element) => (element.innerText || element.value || element.getAttribute("aria-label") || element.getAttribute("title") || "").replace(/\\s+/g, " ").trim();
+        const controls = Array.from(document.querySelectorAll("#indeedApplyButton, [data-testid*='apply' i], button, a, input[type='submit'], [role='button']"));
+        const control = controls.find((element) => {
+          if (!visible(element) || element.disabled || element.getAttribute("aria-disabled") === "true") return false;
+          const value = label(element);
+          return /^(?:apply(?:\\s+(?:now|with indeed|on indeed|for this job))?|easily apply|start application|start your application)$/i.test(value);
+        });
+        if (!control) return null;
+        control.scrollIntoView({ block: "center", inline: "center" });
+        const rect = control.getBoundingClientRect();
+        const href = control.closest("a")?.href || control.getAttribute("href") || "";
+        return {
+          x: rect.left + (rect.width / 2),
+          y: rect.top + (rect.height / 2),
+          external: Boolean(href && !/^https:\\/\\/(?:[^/]+\\.)?indeed\\.com(?:\\/|$)/i.test(href)),
+        };
+      })()`,
+    });
+    return result?.result?.value || undefined;
+  } finally {
+    if (attached) await chrome.debugger.detach(target).catch(() => undefined);
+  }
+}
+
+async function dispatchDebuggerClick(tabId, x, y) {
+  const target = { tabId };
+  let attached = false;
+  try {
+    await chrome.debugger.attach(target, "1.3");
+    attached = true;
+    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x,
+      y,
+      button: "left",
+      buttons: 1,
+      clickCount: 1,
+    });
+    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x,
+      y,
+      button: "left",
+      buttons: 0,
+      clickCount: 1,
+    });
+  } finally {
+    if (attached) await chrome.debugger.detach(target).catch(() => undefined);
   }
 }
 
@@ -182,6 +307,10 @@ async function handleRunnerReady(message, sender) {
     await saveActiveCommands();
   }
 
+  if (state.initialApplyInFlight) {
+    return { ok: true, commandId: state.command.id, waitingForInitialApply: true };
+  }
+
   await startCompanionHeartbeat(state, false);
   await sendRunnerCommand(state, tab.id, message.href || tab.url);
   return { ok: true, commandId: state.command.id };
@@ -228,31 +357,8 @@ async function dispatchTrustedClick(message, sender) {
     throw new Error("The requested Indeed click has invalid coordinates.");
   }
 
-  const target = { tabId };
-  let attached = false;
-  try {
-    await chrome.debugger.attach(target, "1.3");
-    attached = true;
-    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      x,
-      y,
-      button: "left",
-      buttons: 1,
-      clickCount: 1,
-    });
-    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x,
-      y,
-      button: "left",
-      buttons: 0,
-      clickCount: 1,
-    });
-    return { ok: true, clicked: true };
-  } finally {
-    if (attached) await chrome.debugger.detach(target).catch(() => undefined);
-  }
+  await dispatchDebuggerClick(tabId, x, y);
+  return { ok: true, clicked: true };
 }
 
 async function reportCompanionResult(message, report) {
@@ -411,6 +517,7 @@ async function saveActiveCommands() {
       returnTabId: state.returnTabId,
       previousTabIds: state.previousTabIds,
       lastSentByTab: state.lastSentByTab,
+      initialApplyInFlight: Boolean(state.initialApplyInFlight),
     };
   }
   await chrome.storage.session.set({ [activeCommandsKey]: active });
