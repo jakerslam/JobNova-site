@@ -38,7 +38,7 @@ export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
     }
 
     const filtered = mergedJobs.filter((job) => job.status === initialStatus);
-    return filtered.length ? preferLiveJobs(filtered) : preferLiveJobs(mergedJobs.filter((job) => job.status === "Matched"));
+    return preferLiveJobs(filtered);
   }, [initialStatus, likedJobIds, mergedJobs]);
 
   return (
@@ -66,18 +66,25 @@ export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
       </div>
 
       <div className="space-y-4 sm:space-y-5">
-        {visibleJobs.map((job) => (
-          <JobCard
-            key={job.id}
-            job={job}
-            isSelected={false}
-            isSaved={likedJobIds.has(job.id)}
-            onToggleSaved={toggleLiked}
-            onApplyJob={applyToJob}
-            onRefreshStatus={refreshJobs}
-            isApplying={applyingJobId === job.id}
-          />
-        ))}
+        {visibleJobs.length ? (
+          visibleJobs.map((job) => (
+            <JobCard
+              key={job.id}
+              job={job}
+              isSelected={false}
+              isSaved={likedJobIds.has(job.id)}
+              onToggleSaved={toggleLiked}
+              onApplyJob={applyToJob}
+              onRefreshStatus={refreshJobs}
+              isApplying={applyingJobId === job.id}
+            />
+          ))
+        ) : (
+          <div className="border border-dashed border-zinc-200 px-5 py-12 text-center">
+            <p className="text-[15px] font-medium text-ink">No {initialStatus.toLowerCase()} roles yet</p>
+            <p className="mt-1 text-[13px] text-muted">Real Indeed results and your saved jobs will appear here.</p>
+          </div>
+        )}
       </div>
     </DashboardShell>
     <ApplicationQuestionModal

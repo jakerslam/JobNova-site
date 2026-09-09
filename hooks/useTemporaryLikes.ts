@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const storageKey = "jobnova:liked-jobs";
-const fallbackLikedIds = ["ux-designer"];
+const fallbackLikedIds: string[] = [];
 
 function readStoredLikes() {
   if (typeof window === "undefined") {

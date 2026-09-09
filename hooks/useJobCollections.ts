@@ -32,13 +32,13 @@ export function useJobCollections(jobs: Job[]): JobCollections {
 
     if (likedResponse.status === "fulfilled" && likedResponse.value.ok) {
       const payload = (await likedResponse.value.json()) as { jobs: Job[] };
-      nextStatusJobs.Liked = payload.jobs.filter((job) => job.status === "Liked");
+      nextStatusJobs.Liked = payload.jobs.filter((job) => job.status === "Liked" && job.isLiveIndeedJob);
       hydrateBackendLikes(nextStatusJobs.Liked.map((job) => job.id));
     }
 
     if (appliedResponse.status === "fulfilled" && appliedResponse.value.ok) {
       const payload = (await appliedResponse.value.json()) as { jobs: Job[] };
-      nextStatusJobs.Applied = payload.jobs.filter((job) => job.status === "Applied");
+      nextStatusJobs.Applied = payload.jobs.filter((job) => job.status === "Applied" && job.isLiveIndeedJob);
     }
 
     if (indeedApplicationsResponse.status === "fulfilled") {
@@ -81,7 +81,11 @@ export function useJobCollections(jobs: Job[]): JobCollections {
   }, [fetchStatusJobs]);
 
   const mergedJobs = useMemo(() => {
-    const byId = new Map(jobs.map((job) => [job.id, job]));
+    const hasLiveJobs = Object.values(backendStatusJobs)
+      .flatMap((statusJobs) => statusJobs ?? [])
+      .some((job) => job.isLiveIndeedJob);
+    const fallbackMatchedJobs = hasLiveJobs ? [] : jobs.filter((job) => job.status === "Matched");
+    const byId = new Map(fallbackMatchedJobs.map((job) => [job.id, job]));
 
     Object.values(backendStatusJobs).forEach((statusJobs) => {
       statusJobs?.forEach((job) => byId.set(job.id, job));
