@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "JobNova Indeed Companion",
   "description": "Collect Indeed jobs and run guarded applications in the user's authenticated Chrome session.",
-  "version": "0.4.1",
+  "version": "0.4.3",
   "permissions": ["activeTab", "alarms", "scripting", "storage", "tabs", "windows"],
   "host_permissions": [
     "https://*.indeed.com/*",

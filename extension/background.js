@@ -1,3 +1,5 @@
+importScripts("manual-action-policy.js");
+
 const backendUrl = "http://localhost:4100";
 const appFeedUrl = "http://localhost:3000/jobs/matched";
 const activeCommandsKey = "jobnovaActiveCompanionCommands";
@@ -88,9 +90,12 @@ async function executeCompanionCommand(command) {
   const existing = runningCompanionCommands.get(command.id);
   if (existing) return { ok: true, commandId: command.id, tabId: existing.tabId, duplicate: true };
 
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
   const state = {
     command,
     tabId: null,
+    returnTabId: activeTab?.id && isJobNovaUrl(activeTab.url || "") ? activeTab.id : null,
     previousTabIds: [],
     lastSentByTab: {},
     heartbeatTimer: null,
@@ -217,8 +222,10 @@ async function reportCompanionResult(message, report) {
   });
 
   if (isTerminalStatus(report.status)) {
-    if (report.status === "manual_action_required" && !report.manualQuestion) {
+    if (JobNovaManualActionPolicy.shouldRevealManualAction(report)) {
       await revealManualActionTab(state).catch(() => undefined);
+    } else {
+      await restoreJobNovaTab(state).catch(() => undefined);
     }
     await clearCompanionCommand(command.id);
   } else if (payload.command) {
@@ -233,6 +240,14 @@ async function reportCompanionResult(message, report) {
 async function revealManualActionTab(state) {
   if (!state?.tabId) return;
   const tab = await chrome.tabs.update(state.tabId, { active: true });
+  if (tab?.windowId) await chrome.windows.update(tab.windowId, { focused: true });
+}
+
+async function restoreJobNovaTab(state) {
+  if (!state?.returnTabId) return;
+  const returnTab = await chrome.tabs.get(state.returnTabId).catch(() => undefined);
+  if (!returnTab?.id || !isJobNovaUrl(returnTab.url || "")) return;
+  const tab = await chrome.tabs.update(returnTab.id, { active: true });
   if (tab?.windowId) await chrome.windows.update(tab.windowId, { focused: true });
 }
 
@@ -345,6 +360,7 @@ async function saveActiveCommands() {
     active[commandId] = {
       command: state.command,
       tabId: state.tabId,
+      returnTabId: state.returnTabId,
       previousTabIds: state.previousTabIds,
       lastSentByTab: state.lastSentByTab,
     };
@@ -457,6 +473,18 @@ function isIndeedOwnedUrl(value) {
   }
 }
 
+function isJobNovaUrl(value) {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" && url.hostname === "localhost" && url.port === "3000") ||
+      (url.protocol === "https:" && url.hostname === "jakerslam.github.io" && url.pathname.startsWith("/JobNova-site"))
+    );
+  } catch {
+    return false;
+  }
+}
+
 chrome.tabs.onRemoved.addListener((tabId) => {
   for (const state of runningCompanionCommands.values()) {
     if (state.tabId === tabId) {
@@ -477,12 +505,15 @@ async function adoptCompanionChildTab(tab) {
   );
   if (!state || !tab.id) return;
 
+  const childWasActive = Boolean(tab.active);
+
   if (state.tabId !== null && !state.previousTabIds.includes(state.tabId)) {
     state.previousTabIds.push(state.tabId);
   }
   state.tabId = tab.id;
   await chrome.tabs.update(tab.id, { active: false }).catch(() => undefined);
   await saveActiveCommands();
+  if (childWasActive) await restoreJobNovaTab(state).catch(() => undefined);
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {

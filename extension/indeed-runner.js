@@ -60,7 +60,7 @@
         return;
       }
 
-      const checkpoint = detectCheckpoint();
+      const checkpoint = await detectStableCheckpoint();
       if (checkpoint) {
         await pause(command, checkpoint.reason, checkpoint.message, `manual_checkpoint_${step}`);
         completedCommands.add(command.id);
@@ -114,7 +114,7 @@
         return;
       }
 
-      const transitionedCheckpoint = detectCheckpoint();
+      const transitionedCheckpoint = await detectStableCheckpoint();
       if (transitionedCheckpoint) {
         await pause(command, transitionedCheckpoint.reason, transitionedCheckpoint.message, `manual_checkpoint_${step}`);
         completedCommands.add(command.id);
@@ -247,6 +247,16 @@
       return { reason: "login", message: "Indeed login or authentication is required in the normal browser tab." };
     }
     return null;
+  }
+
+  async function detectStableCheckpoint() {
+    const checkpoint = detectCheckpoint();
+    if (checkpoint?.reason !== "captcha") return checkpoint;
+
+    // Indeed can briefly render a Cloudflare/interstitial surface before the
+    // normal job page. Waiting is safe; the runner never interacts with it.
+    await delay(Math.min(3_000, transitionTimeoutMs));
+    return detectCheckpoint();
   }
 
   function detectResumeCheckpoint() {

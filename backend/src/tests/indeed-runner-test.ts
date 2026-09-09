@@ -2,6 +2,7 @@ import { chromium, type Page } from "playwright";
 import path from "node:path";
 
 const runnerPath = path.resolve(process.cwd(), "../extension/indeed-runner.js");
+const manualActionPolicyPath = path.resolve(process.cwd(), "../extension/manual-action-policy.js");
 const profile = {
   firstName: "Test",
   lastName: "Candidate",
@@ -80,6 +81,60 @@ async function testCaptchaPause() {
     await runCommand(page);
     const report = await waitForReport(page, "manual_action_required");
     assertEqual(report?.manualActionReason, "captcha", "CAPTCHA pause reason");
+  } finally {
+    await browser.close();
+  }
+}
+
+async function testTransientCaptchaDoesNotPause() {
+  const { browser, page } = await createPage(`
+    <h1 id="checkpoint">Verify you are human</h1>
+    <script>
+      setTimeout(() => {
+        document.body.innerHTML = '<h1>Software Engineer</h1><button type="button">Apply with Indeed</button>';
+      }, 50);
+    </script>`);
+  try {
+    await runCommand(page);
+    const report = await waitForReport(page, "manual_action_required");
+    assertEqual(report?.manualActionReason, "review_required", "resolved interstitial reaches guarded application flow");
+    const reports = await page.evaluate(() => (window as JobNovaTestWindow).__jobnovaReports);
+    assertEqual(
+      reports.some((candidate) => candidate.manualActionReason === "captcha"),
+      false,
+      "transient verification surface is not reported as a persistent CAPTCHA",
+    );
+  } finally {
+    await browser.close();
+  }
+}
+
+async function testManualActionRevealPolicy() {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.addScriptTag({ path: manualActionPolicyPath });
+    const results = await page.evaluate(() => {
+      const policy = (globalThis as typeof globalThis & {
+        JobNovaManualActionPolicy: { shouldRevealManualAction: (report: Record<string, unknown>) => boolean };
+      }).JobNovaManualActionPolicy;
+      return {
+        captcha: policy.shouldRevealManualAction({ status: "manual_action_required", manualActionReason: "captcha" }),
+        login: policy.shouldRevealManualAction({ status: "manual_action_required", manualActionReason: "login" }),
+        browserOnlyField: policy.shouldRevealManualAction({ status: "manual_action_required", manualActionReason: "unknown_field" }),
+        inAppQuestion: policy.shouldRevealManualAction({
+          status: "manual_action_required",
+          manualActionReason: "unknown_field",
+          manualQuestion: { label: "Relocate?" },
+        }),
+        review: policy.shouldRevealManualAction({ status: "manual_action_required", manualActionReason: "review_required" }),
+      };
+    });
+    assertEqual(results.captcha, true, "persistent CAPTCHA reveals Indeed");
+    assertEqual(results.login, true, "login reveals Indeed");
+    assertEqual(results.browserOnlyField, true, "browser-only unknown field reveals Indeed");
+    assertEqual(results.inAppQuestion, false, "relayable question stays in JobNova");
+    assertEqual(results.review, false, "generic review state stays in JobNova");
   } finally {
     await browser.close();
   }
@@ -503,6 +558,8 @@ function assertTruthy(actual: unknown, label: string) {
 async function main() {
   await testLoginPause();
   await testCaptchaPause();
+  await testTransientCaptchaDoesNotPause();
+  await testManualActionRevealPolicy();
   await testNormalSignInHeaderDoesNotPauseLogin();
   await testDescriptionTextDoesNotConfirmSubmission();
   await testDescriptionTextDoesNotTriggerCaptcha();
