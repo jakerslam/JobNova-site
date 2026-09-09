@@ -398,6 +398,33 @@ async function testExistingIndeedResumeSelection() {
   }
 }
 
+async function testTailoredResumeContinuation() {
+  const { browser, page } = await createPage(
+    `<main>
+      <h1>Tailored Indeed Resume</h1>
+      <label data-testid="resume-selection-structured-resume-radio-card">
+        <input type="radio" name="resume-selection" value="structured"> Use your Indeed Resume
+      </label>
+      <button id="next">Continue</button>
+    </main>
+    <script>
+      document.querySelector('#next').addEventListener('click', () => {
+        window.__selectedResume = document.querySelector('[name="resume-selection"]:checked')?.value;
+        document.body.innerHTML = '<main><h1>Employer questions</h1><form><label>Relocation preference <input required></label><button type="button">Continue</button></form></main>';
+      });
+    </script>`,
+    "https://profile.indeed.com/tailored-resume/resume?continue=https%3A%2F%2Fsmartapply.indeed.com%2Fbeta%2Findeedapply%2Fform",
+  );
+  try {
+    await runCommand(page);
+    const report = await waitForReport(page, "manual_action_required");
+    assertEqual(report?.manualActionReason, "unknown_field", "tailored resume reaches the application question");
+    assertEqual(await page.evaluate(() => (window as JobNovaTestWindow).__selectedResume), "structured", "tailored resume selects the existing Indeed resume");
+  } finally {
+    await browser.close();
+  }
+}
+
 async function testEmailVerificationPause() {
   const { browser, page } = await createPage("<h1>Enter the verification code sent to your email</h1>");
   try {
@@ -621,6 +648,7 @@ async function main() {
   await testRenderedRequiredRadioGroupPause();
   await testDelayedSmartApplyTransition();
   await testExistingIndeedResumeSelection();
+  await testTailoredResumeContinuation();
   await testReviewPause();
   await testConfirmedSubmit();
   await testClickWithoutConfirmationDoesNotSubmit();

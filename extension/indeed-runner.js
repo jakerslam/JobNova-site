@@ -145,6 +145,17 @@
         return;
       }
 
+      if (isTailoredResumePage() && !hasSafeSelectedResume()) {
+        await pause(
+          command,
+          "unknown_field",
+          "Indeed needs you to choose one of your existing resumes before JobNova can continue.",
+          `resume_selection_required_${step}`,
+        );
+        completedCommands.add(command.id);
+        return;
+      }
+
       fillKnownFields(profile);
       await report(command, { status: "in_progress", lastStep: `profile_fields_filled_${step}` });
       await delay(150);
@@ -275,22 +286,11 @@
   }
 
   function selectSafeExistingResume() {
-    const heading = Array.from(document.querySelectorAll("h1, h2"))
-      .filter(isVisible)
-      .map(actionLabel)
-      .find((label) => /^(?:add|select|choose) a resume$/i.test(label));
-    if (!heading) return { selected: false };
+    if (!isResumeSelectionPage()) return { selected: false };
 
-    const options = Array.from(document.querySelectorAll("input[type='radio']"))
-      .filter(isVisible)
-      .map((input) => ({ input, label: getResumeOptionLabel(input) }));
-    if (!options.length) return { selected: false };
-
-    const indeedResume = options.find((option) => /^use your indeed resume\b/i.test(option.label));
-    const uploadedResumes = options.filter((option) =>
-      option !== indeedResume && !/ai[- ]tailored|create.*resume|no resume/i.test(option.label),
-    );
-    const safeOption = indeedResume || (uploadedResumes.length === 1 ? uploadedResumes[0] : undefined);
+    const safeOption = getSafeResumeOption();
+    const hasOptions = Array.from(document.querySelectorAll("input[type='radio']")).some(isVisible);
+    if (!hasOptions) return { selected: false };
 
     if (!safeOption) {
       return {
@@ -305,6 +305,42 @@
     return { selected: true };
   }
 
+  function isResumeSelectionPage() {
+    if (isTailoredResumePage()) return true;
+    return Array.from(document.querySelectorAll("h1, h2"))
+      .filter(isVisible)
+      .map(actionLabel)
+      .some((label) => /^(?:add|select|choose) a resume$/i.test(label));
+  }
+
+  function isTailoredResumePage() {
+    try {
+      const url = new URL(window.location.href);
+      return (
+        url.hostname === "profile.indeed.com" &&
+        url.pathname.startsWith("/tailored-resume/") &&
+        Boolean(url.searchParams.get("continue"))
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function hasSafeSelectedResume() {
+    return Boolean(getSafeResumeOption()?.input.checked);
+  }
+
+  function getSafeResumeOption() {
+    const options = Array.from(document.querySelectorAll("input[type='radio']"))
+      .filter(isVisible)
+      .map((input) => ({ input, label: getResumeOptionLabel(input) }));
+    const indeedResume = options.find((option) => /^use your indeed resume\b/i.test(option.label));
+    const uploadedResumes = options.filter((option) =>
+      option !== indeedResume && !/ai[- ]tailored|create.*resume|no resume/i.test(option.label),
+    );
+    return indeedResume || (uploadedResumes.length === 1 ? uploadedResumes[0] : undefined);
+  }
+
   function getResumeOptionLabel(input) {
     const container = input.closest("[data-testid*='radio-card'], label");
     return actionLabel(container || input);
@@ -313,6 +349,7 @@
   function isApplicationPage() {
     const host = window.location.hostname.toLowerCase();
     if (host.includes("smartapply.indeed.com")) return true;
+    if (isTailoredResumePage()) return true;
     if (/\/(?:apply|application)(?:\/|$)/i.test(window.location.pathname)) return true;
 
     for (const form of document.querySelectorAll("form")) {

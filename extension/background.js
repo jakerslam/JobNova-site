@@ -186,7 +186,7 @@ function findStateForTab(tab) {
     if (tab.openerTabId && (tab.openerTabId === state.tabId || state.previousTabIds.includes(tab.openerTabId))) return state;
     if (tab.url && tab.url === state.command.jobUrl) return state;
   }
-  return undefined;
+  return findLikelyApplicationContinuation(tab.url || "");
 }
 
 async function fetchCompanionProfile(message) {
@@ -494,15 +494,13 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 chrome.tabs.onCreated.addListener((tab) => {
-  if (!tab.id || !tab.openerTabId) return;
+  if (!tab.id) return;
   void adoptCompanionChildTab(tab);
 });
 
 async function adoptCompanionChildTab(tab) {
   await hydrateActiveCommands();
-  const state = Array.from(runningCompanionCommands.values()).find(
-    (candidate) => candidate.tabId === tab.openerTabId || candidate.previousTabIds.includes(tab.openerTabId),
-  );
+  const state = findStateForTab(tab);
   if (!state || !tab.id) return;
 
   const childWasActive = Boolean(tab.active);
@@ -523,7 +521,16 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 async function handleActiveTabUpdate(tabId, url, status) {
   await hydrateActiveCommands();
-  const state = Array.from(runningCompanionCommands.values()).find((candidate) => candidate.tabId === tabId);
+  let state = Array.from(runningCompanionCommands.values()).find((candidate) => candidate.tabId === tabId);
+  if (!state) {
+    state = findLikelyApplicationContinuation(url);
+    if (state) {
+      if (state.tabId !== null && !state.previousTabIds.includes(state.tabId)) state.previousTabIds.push(state.tabId);
+      state.tabId = tabId;
+      await chrome.tabs.update(tabId, { active: false }).catch(() => undefined);
+      await saveActiveCommands();
+    }
+  }
   if (!state || !url) return;
 
   if (!isIndeedOwnedUrl(url)) {
@@ -541,6 +548,25 @@ async function handleActiveTabUpdate(tabId, url, status) {
       "extension_receiver_error",
       error instanceof Error ? error.message : String(error),
     ));
+  }
+}
+
+function findLikelyApplicationContinuation(url) {
+  if (!isIndeedApplicationContinuationUrl(url)) return undefined;
+  const candidates = Array.from(runningCompanionCommands.values()).filter(
+    (state) => state.command.lastStep === "apply_clicked",
+  );
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+function isIndeedApplicationContinuationUrl(value) {
+  try {
+    const url = new URL(value);
+    if (!isIndeedOwnedUrl(value)) return false;
+    if (url.hostname === "smartapply.indeed.com") return true;
+    return url.hostname === "profile.indeed.com" && url.pathname.startsWith("/tailored-resume/") && Boolean(url.searchParams.get("continue"));
+  } catch {
+    return false;
   }
 }
 
