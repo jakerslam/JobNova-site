@@ -125,7 +125,10 @@ async function executeCompanionCommand(command) {
     const tab = await openOrReuseIndeedTab(command.jobUrl);
     state.tabId = tab.id;
     await saveActiveCommands();
-    await startCompanionHeartbeat(state, false);
+    // Claim the command as running before the first-page wait. The initial
+    // Indeed surface can take long enough that a timer-only heartbeat risks
+    // losing the lease before the trusted click is dispatched.
+    await startCompanionHeartbeat(state, true);
     state.initialApplyInFlight = true;
     await saveActiveCommands();
     const started = await startIndeedApplication(state, tab.id).finally(async () => {
