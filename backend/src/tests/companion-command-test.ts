@@ -281,6 +281,22 @@ function testUnsafeManualResumeUrlFallsBackToPosting() {
   }
 }
 
+function testStaleJobDetailResumeUrlFallsBackToPosting() {
+  const fixture = createFixture();
+  try {
+    fixture.applications.update(fixture.application.id, {
+      status: "manual_action_required",
+      manualActionReason: "review_required",
+      manualActionUrl: `${fixture.application.jobUrl}&from=iaBackPress`,
+    });
+
+    const dispatched = fixture.service.dispatch(fixture.application.id, false);
+    assertEqual(dispatched.command.jobUrl, fixture.application.jobUrl, "stale job detail URL falls back to the original posting");
+  } finally {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  }
+}
+
 function testInAppQuestionAnswerResumesTheSameApplication() {
   const fixture = createFixture();
   try {
@@ -382,5 +398,6 @@ testExpiredLeaseRecoveryAndStaleTokenRejection();
 testApplicationStatusPropagation();
 testProfileProjectionAndManualResumeUrl();
 testUnsafeManualResumeUrlFallsBackToPosting();
+testStaleJobDetailResumeUrlFallsBackToPosting();
 testInAppQuestionAnswerResumesTheSameApplication();
 console.log("Companion command protocol test passed: idempotent dispatch, exclusive claim, lease recovery, stale-token rejection, strict report validation, profile projection, and manual resume URL safety.");

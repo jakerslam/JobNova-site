@@ -407,12 +407,23 @@ function getSafeCommandUrl(application: { jobUrl: string; status: ApplicationSta
     application.status === "manual_action_required" &&
     application.manualActionUrl &&
     application.manualActionUrl !== application.jobUrl &&
-    isIndeedOwnedUrl(application.manualActionUrl)
+    isIndeedContinuationUrl(application.manualActionUrl)
   ) {
     return application.manualActionUrl;
   }
 
   return application.jobUrl;
+}
+
+function isIndeedContinuationUrl(value: string) {
+  try {
+    const url = new URL(value);
+    if (!isIndeedOwnedUrl(value)) return false;
+    if (url.hostname === "smartapply.indeed.com" || url.hostname === "secure.indeed.com") return true;
+    return url.hostname === "profile.indeed.com" && url.pathname.startsWith("/tailored-resume/") && Boolean(url.searchParams.get("continue"));
+  } catch {
+    return false;
+  }
 }
 
 export function isIndeedOwnedUrl(value: string) {
