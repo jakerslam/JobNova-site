@@ -365,11 +365,11 @@ async function dispatchTrustedClick(message, sender) {
 }
 
 async function reportCompanionResult(message, report) {
-  const command = message.command || {
+  const command = message.command || (message.id ? message : {
     id: message.commandId,
     agentId: message.agentId,
     leaseToken: message.leaseToken,
-  };
+  });
   const state = await getActiveState(command.id);
   assertLeaseMessageMatches(state, command);
   const payload = await postBackendJson(`/companion/commands/${encodeURIComponent(command.id)}/report`, {
