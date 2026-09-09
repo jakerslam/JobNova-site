@@ -208,6 +208,53 @@ async function testApplyWithIndeedEndToEnd() {
   }
 }
 
+async function testAlternateIndeedApplyControl() {
+  const { browser, page } = await createPage(`
+    <h1>Software Engineer</h1>
+    <div role="button" tabindex="0" id="start">Apply on Indeed</div>
+    <script>
+      document.querySelector('#start').addEventListener('click', () => {
+        document.body.innerHTML = '<form><label>Email <input type="email" aria-label="Email" required></label><button type="submit" id="submit">Submit application</button></form>';
+        document.querySelector('#submit').addEventListener('click', (event) => {
+          event.preventDefault();
+          document.body.innerHTML = '<h1>Application submitted</h1>';
+        });
+      });
+    </script>`);
+  try {
+    await runCommand(page, { allowSubmit: true });
+    const report = await waitForReport(page, "submitted");
+    assertEqual(report?.lastStep, "submission_confirmed", "alternate Indeed apply control reaches confirmed submission");
+  } finally {
+    await browser.close();
+  }
+}
+
+async function testDelayedIndeedApplyControl() {
+  const { browser, page } = await createPage(`
+    <h1>Software Engineer</h1>
+    <main id="application-root">Loading job application...</main>
+    <script>
+      setTimeout(() => {
+        document.querySelector('#application-root').innerHTML = '<button id="start">Apply with Indeed</button>';
+        document.querySelector('#start').addEventListener('click', () => {
+          document.body.innerHTML = '<form><label>Email <input type="email" aria-label="Email" required></label><button type="submit" id="submit">Submit application</button></form>';
+          document.querySelector('#submit').addEventListener('click', (event) => {
+            event.preventDefault();
+            document.body.innerHTML = '<h1>Application submitted</h1>';
+          });
+        });
+      }, 100);
+    </script>`);
+  try {
+    await runCommand(page, { allowSubmit: true });
+    const report = await waitForReport(page, "submitted");
+    assertEqual(report?.lastStep, "submission_confirmed", "delayed Indeed apply control reaches confirmed submission");
+  } finally {
+    await browser.close();
+  }
+}
+
 async function testUnknownRequiredFieldPause() {
   const { browser, page } = await createPage(
     `<form>
@@ -564,6 +611,8 @@ async function main() {
   await testDescriptionTextDoesNotConfirmSubmission();
   await testDescriptionTextDoesNotTriggerCaptcha();
   await testApplyWithIndeedEndToEnd();
+  await testAlternateIndeedApplyControl();
+  await testDelayedIndeedApplyControl();
   await testEmailVerificationPause();
   await testSmsVerificationPause();
   await testRequiredResumePause();
@@ -576,7 +625,7 @@ async function main() {
   await testConfirmedSubmit();
   await testClickWithoutConfirmationDoesNotSubmit();
   await testExternalUrlIsSkipped();
-  console.log("Indeed runner test passed: Apply with Indeed end-to-end, login, CAPTCHA, verification, resume, unknown-field, review, confirmation, and external URL paths.");
+  console.log("Indeed runner test passed: alternate Apply controls, login, CAPTCHA, verification, resume, unknown-field, review, confirmation, and external URL paths.");
 }
 
 void main().catch((error) => {

@@ -2,7 +2,7 @@
   const runningCommands = new Set();
   const completedCommands = new Set();
   const maxSteps = 16;
-  const transitionTimeoutMs = Number(globalThis.__JOBNOVA_TEST_TIMEOUT_MS__) || 12_000;
+  const transitionTimeoutMs = Number(globalThis.__JOBNOVA_TEST_TIMEOUT_MS__) || 20_000;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || message.type !== "JOBNOVA_RUN_INDEED_COMMAND") return false;
@@ -68,7 +68,14 @@
       }
 
       if (!isApplicationPage()) {
-        const applyTarget = findApplyTarget();
+        const applyResolution = await waitForApplyTarget();
+        if (applyResolution.checkpoint) {
+          await pause(command, applyResolution.checkpoint.reason, applyResolution.checkpoint.message, `manual_checkpoint_${step}`);
+          completedCommands.add(command.id);
+          return;
+        }
+
+        const applyTarget = applyResolution.target;
         if (!applyTarget) {
           await report(command, {
             status: "skipped",
@@ -90,8 +97,7 @@
         }
 
         await report(command, { status: "in_progress", lastStep: "apply_clicked" });
-        applyTarget.element.focus?.();
-        applyTarget.element.click();
+        activateTarget(applyTarget.element);
         const handoff = await waitForApplicationHandoff(command);
         if (handoff === "transferred") return;
         if (handoff === "not_detected") {
@@ -165,8 +171,7 @@
         }
 
         await report(command, { status: "in_progress", lastStep: "final_submit_clicked" });
-        finalSubmit.focus?.();
-        finalSubmit.click();
+        activateTarget(finalSubmit);
         const confirmation = await waitForSubmissionConfirmation(command);
 
         if (confirmation === "confirmed") {
@@ -189,7 +194,7 @@
 
       await report(command, { status: "in_progress", lastStep: `clicked_${next.label}` });
       const previousSurface = applicationSurfaceFingerprint();
-      next.element.click();
+      activateTarget(next.element);
       const advanced = await waitForApplicationChange(previousSurface);
       if (!advanced) {
         const blockedQuestion = findUnknownRequiredField();
@@ -324,12 +329,38 @@
   function findApplyTarget() {
     for (const element of visibleActionElements()) {
       const label = actionLabel(element);
-      if (!/^apply(?:\s+(?:now|with indeed|for this job))?(?:\s+opens in a new (?:tab|window))?$/i.test(label)) continue;
+      if (!isIndeedApplyLabel(label)) continue;
       const href = element.closest("a")?.href || element.getAttribute("href") || "";
+      if (/apply on company site|continue to company site|external application/i.test(label)) {
+        return { element, external: true };
+      }
       if (href && !isIndeedOwnedUrl(href)) return { element, external: true };
       return { element, external: false };
     }
     return null;
+  }
+
+  function isIndeedApplyLabel(label) {
+    const normalized = label
+      .replace(/\s+opens in a new (?:tab|window)\.?$/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return /^(?:apply(?:\s+(?:now|with indeed|on indeed|for this job))?|easily apply|start application|start your application)$/i.test(normalized);
+  }
+
+  async function waitForApplyTarget(timeoutMs = Math.min(12_000, transitionTimeoutMs)) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const checkpoint = await detectStableCheckpoint();
+      if (checkpoint) return { checkpoint };
+
+      const target = findApplyTarget();
+      if (target) return { target };
+
+      if (isApplicationPage()) return {};
+      await delay(250);
+    }
+    return {};
   }
 
   function findFinalSubmitTarget() {
@@ -541,9 +572,19 @@
   }
 
   function visibleActionElements() {
-    return Array.from(document.querySelectorAll("button, input[type='submit'], a"))
+    return Array.from(document.querySelectorAll("button, input[type='submit'], a, [role='button']"))
       .filter(isVisible)
-      .filter((element) => !element.disabled);
+      .filter((element) => !element.disabled)
+      .filter((element, index, actions) => !actions.some((candidate, candidateIndex) => (
+        candidateIndex < index && candidate.contains(element)
+      )));
+  }
+
+  function activateTarget(element) {
+    element.focus?.({ preventScroll: true });
+    element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+    element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+    element.click();
   }
 
   function actionLabel(element) {
