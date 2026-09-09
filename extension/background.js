@@ -553,9 +553,11 @@ async function handleActiveTabUpdate(tabId, url, status) {
 
 function findLikelyApplicationContinuation(url) {
   if (!isIndeedApplicationContinuationUrl(url)) return undefined;
-  const candidates = Array.from(runningCompanionCommands.values()).filter(
-    (state) => state.command.lastStep === "apply_clicked",
-  );
+  // A service-worker restart can leave the command's lastStep as queued even
+  // after Indeed opens its resume/application continuation. The URL is an
+  // Indeed-owned continuation surface, so it is safe to adopt when there is
+  // exactly one active command.
+  const candidates = Array.from(runningCompanionCommands.values());
   return candidates.length === 1 ? candidates[0] : undefined;
 }
 
