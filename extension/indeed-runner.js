@@ -98,7 +98,7 @@
         }
 
         await report(command, { status: "in_progress", lastStep: "apply_clicked" });
-        activateTarget(applyTarget.element);
+        await activateTarget(command, applyTarget.element);
         const handoff = await waitForApplicationHandoff(command);
         if (handoff === "transferred") return;
         if (handoff === "not_detected") {
@@ -128,7 +128,7 @@
         return;
       }
 
-      const resumeSelection = selectSafeExistingResume();
+      const resumeSelection = await selectSafeExistingResume(command);
       if (resumeSelection.blocked) {
         await pause(command, "unknown_field", resumeSelection.blocked, `resume_selection_required_${step}`);
         completedCommands.add(command.id);
@@ -183,7 +183,7 @@
         }
 
         await report(command, { status: "in_progress", lastStep: "final_submit_clicked" });
-        activateTarget(finalSubmit);
+        await activateTarget(command, finalSubmit);
         const confirmation = await waitForSubmissionConfirmation(command);
 
         if (confirmation === "confirmed") {
@@ -206,7 +206,7 @@
 
       await report(command, { status: "in_progress", lastStep: `clicked_${next.label}` });
       const previousSurface = applicationSurfaceFingerprint();
-      activateTarget(next.element);
+      await activateTarget(command, next.element);
       const advanced = await waitForApplicationChange(previousSurface);
       if (!advanced) {
         const blockedQuestion = findUnknownRequiredField();
@@ -286,7 +286,7 @@
     return null;
   }
 
-  function selectSafeExistingResume() {
+  async function selectSafeExistingResume(command) {
     if (!isResumeSelectionPage()) return { selected: false };
 
     const safeOption = getSafeResumeOption();
@@ -302,7 +302,7 @@
     if (safeOption.input.checked) return { selected: false };
 
     const target = safeOption.input.closest("[data-testid*='radio-card'], label") || safeOption.input;
-    target.click();
+    await activateTarget(command, target);
     return { selected: true };
   }
 
@@ -618,8 +618,26 @@
       )));
   }
 
-  function activateTarget(element) {
+  async function activateTarget(command, element) {
     element.focus?.({ preventScroll: true });
+    const rect = element.getBoundingClientRect();
+    const response = await chrome.runtime.sendMessage({
+      type: "JOBNOVA_TRUSTED_CLICK",
+      commandId: command.id,
+      agentId: command.agentId,
+      leaseToken: command.leaseToken,
+      x: rect.left + (rect.width / 2),
+      y: rect.top + (rect.height / 2),
+    }).catch(() => undefined);
+    if (response?.ok && response.clicked) return;
+
+    if (!globalThis.__JOBNOVA_TEST_TIMEOUT_MS__) {
+      throw new Error(response?.message || "Chrome could not send a trusted click to Indeed.");
+    }
+
+    // The fallback keeps the runner testable and supports controls that do not
+    // require a trusted user gesture. Real Indeed controls use the DevTools
+    // input path above.
     element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
     element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
     element.click();

@@ -61,6 +61,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "JOBNOVA_TRUSTED_CLICK") {
+    dispatchTrustedClick(message, _sender)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, message: error instanceof Error ? error.message : String(error) }));
+    return true;
+  }
+
   if (message.type === "JOBNOVA_REPORT_COMPANION_RESULT" || message.type === "JOBNOVA_REPORT_COMPANION_STEP") {
     const report = message.type === "JOBNOVA_REPORT_COMPANION_STEP"
       ? { status: "in_progress", lastStep: "companion_tab_ready" }
@@ -205,6 +212,47 @@ async function checkCompanionOwner(message, sender) {
     ok: true,
     isCurrentTab: Boolean(state && sender?.tab?.id && state.tabId === sender.tab.id),
   };
+}
+
+async function dispatchTrustedClick(message, sender) {
+  const state = await getActiveState(message.commandId);
+  assertLeaseMessageMatches(state, message);
+  const tabId = sender?.tab?.id;
+  if (!tabId || state.tabId !== tabId) {
+    throw new Error("The requested Indeed click did not come from the active application tab.");
+  }
+
+  const x = Number(message.x);
+  const y = Number(message.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0) {
+    throw new Error("The requested Indeed click has invalid coordinates.");
+  }
+
+  const target = { tabId };
+  let attached = false;
+  try {
+    await chrome.debugger.attach(target, "1.3");
+    attached = true;
+    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x,
+      y,
+      button: "left",
+      buttons: 1,
+      clickCount: 1,
+    });
+    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x,
+      y,
+      button: "left",
+      buttons: 0,
+      clickCount: 1,
+    });
+    return { ok: true, clicked: true };
+  } finally {
+    if (attached) await chrome.debugger.detach(target).catch(() => undefined);
+  }
 }
 
 async function reportCompanionResult(message, report) {
