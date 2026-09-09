@@ -498,20 +498,43 @@ chrome.tabs.onCreated.addListener((tab) => {
   void adoptCompanionChildTab(tab);
 });
 
+// Indeed often launches its resume/application flow in a new tab without a
+// reliable tab opener. webNavigation retains the browser's actual source-tab
+// relationship, so the active command can follow that handoff deterministically.
+chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
+  void adoptCompanionNavigationTarget(details);
+});
+
 async function adoptCompanionChildTab(tab) {
   await hydrateActiveCommands();
   const state = findStateForTab(tab);
   if (!state || !tab.id) return;
 
-  const childWasActive = Boolean(tab.active);
+  await assignCompanionTab(state, tab.id, Boolean(tab.active));
+}
+
+async function adoptCompanionNavigationTarget(details) {
+  if (!isIndeedApplicationContinuationUrl(details.url)) return;
+  await hydrateActiveCommands();
+  const state = Array.from(runningCompanionCommands.values()).find(
+    (candidate) => candidate.tabId === details.sourceTabId || candidate.previousTabIds.includes(details.sourceTabId),
+  );
+  if (!state) return;
+
+  const tab = await chrome.tabs.get(details.tabId).catch(() => undefined);
+  await assignCompanionTab(state, details.tabId, Boolean(tab?.active));
+}
+
+async function assignCompanionTab(state, tabId, wasActive) {
+  if (state.tabId === tabId) return;
 
   if (state.tabId !== null && !state.previousTabIds.includes(state.tabId)) {
     state.previousTabIds.push(state.tabId);
   }
-  state.tabId = tab.id;
-  await chrome.tabs.update(tab.id, { active: false }).catch(() => undefined);
+  state.tabId = tabId;
+  await chrome.tabs.update(tabId, { active: false }).catch(() => undefined);
   await saveActiveCommands();
-  if (childWasActive) await restoreJobNovaTab(state).catch(() => undefined);
+  if (wasActive) await restoreJobNovaTab(state).catch(() => undefined);
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -525,10 +548,8 @@ async function handleActiveTabUpdate(tabId, url, status) {
   if (!state) {
     state = findLikelyApplicationContinuation(url);
     if (state) {
-      if (state.tabId !== null && !state.previousTabIds.includes(state.tabId)) state.previousTabIds.push(state.tabId);
-      state.tabId = tabId;
-      await chrome.tabs.update(tabId, { active: false }).catch(() => undefined);
-      await saveActiveCommands();
+      const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+      await assignCompanionTab(state, tabId, Boolean(tab?.active));
     }
   }
   if (!state || !url) return;
