@@ -69,7 +69,7 @@
       }
 
       if (!isApplicationPage()) {
-        if (command.lastStep === "apply_clicked") {
+        if (command.lastStep === "apply_clicked" || command.lastStep === "apply_navigation_started") {
           const handoff = await waitForApplicationHandoff(command);
           if (handoff === "transferred") return;
           if (handoff === "not_detected") {

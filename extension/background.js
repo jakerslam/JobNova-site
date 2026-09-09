@@ -158,10 +158,14 @@ async function startIndeedApplication(state, tabId) {
     return true;
   }
 
-  await dispatchDebuggerClick(tabId, target.x, target.y);
+  if (target.href && isIndeedApplicationContinuationUrl(target.href)) {
+    await chrome.tabs.update(tabId, { url: target.href });
+  } else {
+    await dispatchDebuggerClick(tabId, target.x, target.y);
+  }
   const payload = await reportCompanionResult(state.command, {
     status: "in_progress",
-    lastStep: "apply_clicked",
+    lastStep: target.href ? "apply_navigation_started" : "apply_clicked",
   });
   if (payload.command) {
     state.command = payload.command;
@@ -220,10 +224,12 @@ async function readIndeedApplyTarget(tabId) {
         if (!control) return null;
         control.scrollIntoView({ block: "center", inline: "center" });
         const rect = control.getBoundingClientRect();
-        const href = control.closest("a")?.href || control.getAttribute("href") || "";
+        const rawHref = control.closest("a")?.href || control.getAttribute("href") || control.getAttribute("data-indeed-apply-link") || control.getAttribute("data-apply-url") || "";
+        const href = rawHref ? new URL(rawHref, location.href).href : "";
         return {
           x: rect.left + (rect.width / 2),
           y: rect.top + (rect.height / 2),
+          href,
           external: Boolean(href && !/^https:\\/\\/(?:[^/]+\\.)?indeed\\.com(?:\\/|$)/i.test(href)),
         };
       })()`,
