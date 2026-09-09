@@ -158,14 +158,28 @@ async function startIndeedApplication(state, tabId) {
     return true;
   }
 
+  let applicationNavigationStarted = false;
   if (target.href && isIndeedApplicationContinuationUrl(target.href)) {
     await chrome.tabs.update(tabId, { url: target.href });
+    applicationNavigationStarted = true;
   } else {
     await dispatchDebuggerClick(tabId, target.x, target.y);
+    applicationNavigationStarted = await waitForApplicationNavigation(tabId, state.command.jobUrl);
+
+    // The Indeed widget is a JavaScript button, not a normal link. Retry only
+    // when the first trusted pointer sequence left the original job page in
+    // place, using the freshly measured real button target.
+    if (!applicationNavigationStarted) {
+      const retryTarget = await readIndeedApplyTarget(tabId);
+      if (retryTarget && !retryTarget.external) {
+        await dispatchDebuggerClick(tabId, retryTarget.x, retryTarget.y);
+        applicationNavigationStarted = await waitForApplicationNavigation(tabId, state.command.jobUrl);
+      }
+    }
   }
   const payload = await reportCompanionResult(state.command, {
     status: "in_progress",
-    lastStep: target.href ? "apply_navigation_started" : "apply_clicked",
+    lastStep: applicationNavigationStarted ? "apply_navigation_started" : "apply_clicked",
   });
   if (payload.command) {
     state.command = payload.command;
@@ -200,6 +214,17 @@ async function waitForIndeedApplyTarget(tabId, timeoutMs = 15_000) {
   return undefined;
 }
 
+async function waitForApplicationNavigation(tabId, jobUrl, timeoutMs = 3_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+    const currentUrl = tab?.url || "";
+    if (currentUrl && currentUrl !== jobUrl && isIndeedApplicationContinuationUrl(currentUrl)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  return false;
+}
+
 async function readIndeedApplyTarget(tabId) {
   const target = { tabId };
   let attached = false;
@@ -215,9 +240,9 @@ async function readIndeedApplyTarget(tabId) {
           return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
         };
         const label = (element) => (element.innerText || element.value || element.getAttribute("aria-label") || element.getAttribute("title") || "").replace(/\\s+/g, " ").trim();
-        const controls = Array.from(document.querySelectorAll("#indeedApplyButton, [data-testid*='apply' i], button, a, input[type='submit'], [role='button']"));
+        const controls = Array.from(document.querySelectorAll("#indeedApplyButton, button[data-testid*='apply' i], a[data-testid*='apply' i], input[type='submit'][data-testid*='apply' i], [role='button'][data-testid*='apply' i], button, a, input[type='submit'], [role='button']"));
         const control = controls.find((element) => {
-          if (!visible(element) || element.disabled || element.getAttribute("aria-disabled") === "true") return false;
+          if (!element.matches("button, a, input[type='submit'], [role='button']") || !visible(element) || element.disabled || element.getAttribute("aria-disabled") === "true") return false;
           const value = label(element);
           return /^(?:apply(?:\\s+(?:now|with indeed|on indeed|for this job))?|easily apply|start application|start your application)$/i.test(value);
         });
@@ -247,12 +272,21 @@ async function dispatchDebuggerClick(tabId, x, y) {
     await chrome.debugger.attach(target, "1.3");
     attached = true;
     await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x,
+      y,
+      button: "none",
+      buttons: 0,
+      pointerType: "mouse",
+    });
+    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
       type: "mousePressed",
       x,
       y,
       button: "left",
       buttons: 1,
       clickCount: 1,
+      pointerType: "mouse",
     });
     await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
       type: "mouseReleased",
@@ -261,6 +295,7 @@ async function dispatchDebuggerClick(tabId, x, y) {
       button: "left",
       buttons: 0,
       clickCount: 1,
+      pointerType: "mouse",
     });
   } finally {
     if (attached) await chrome.debugger.detach(target).catch(() => undefined);
