@@ -30,6 +30,10 @@ jobs:
       - name: Install backend dependencies
         run: npm --prefix backend ci
 
+      - name: Install Playwright Chromium
+        working-directory: backend
+        run: npx playwright install --with-deps chromium
+
       - name: Lint
         run: npm run lint
 
