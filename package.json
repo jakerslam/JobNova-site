@@ -4,10 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:all": "node scripts/dev-all.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:workflow && npm run test:companion && npm run test:extension-content && npm run test:extension-runner",
+    "test:workflow": "npm --prefix backend run test:workflow",
+    "test:companion": "npm --prefix backend run test:companion",
+    "test:extension-content": "npm --prefix backend run test:extension-content",
+    "test:extension-runner": "npm --prefix backend run test:extension-runner"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

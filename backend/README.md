@@ -1,245 +1,193 @@
-# Indeed Auto-Apply Backend Module
+# JobNova Indeed Backend
 
-Minimal backend module for a controlled Indeed auto-apply engineering test.
-
-This is a single-user prototype. It uses a visible Playwright browser, local encrypted session storage, private candidate configuration, and durable application status tracking. It does not bypass CAPTCHA, SMS, email verification, login checks, or platform security mechanisms.
+Minimal, reusable Indeed auto-apply module for the JobNova internship project. It uses only the candidate's own profile and authenticated Indeed account. It never attempts to bypass login, CAPTCHA, email verification, SMS verification, or another platform security mechanism.
 
 ## Architecture
 
-```txt
-src/
-  server.ts                      HTTP API for webapp/manual-session handoff
-  cli.ts                         CLI entrypoint
-  config/loadConfig.ts           Loads private local candidate/preference JSON
-  indeed/
-    IndeedSessionCoordinator.ts  Owns active login handoff sessions
-    IndeedSessionManager.ts      Opens fresh/restored Playwright sessions
-    IndeedManualCheck.ts         Detects login, CAPTCHA, SMS, email checkpoints
-    IndeedSearch.ts              Builds low-volume Indeed search URLs
-    IndeedApplicationRunner.ts   Application-runner scaffold
-  storage/
-    SessionStore.ts              Encrypts/decrypts Playwright storageState
-    ApplicationStore.ts          Tracks application statuses in local JSON
-  workflow/
-    statuses.ts                  Status and manual-action enums
-    types.ts                     Candidate, preference, application types
+```text
+Next.js job card
+  -> POST /applications/:id/dispatch-companion
+  -> durable command + application state
+  -> Chrome companion claims a leased command
+  -> background worker opens Indeed in normal Chrome
+  -> guarded runner fills and advances the application
+  -> backend records every state transition
 ```
 
-The reusable workflow code is shared by both the CLI and the HTTP API. The API is the scalable product path: the webapp can start a visible login handoff session, let the user complete manual verification, save encrypted session state, close the browser, and later restore the session for search/apply/resume runs.
+The system has three boundaries:
+
+- **Web application:** imports backend records into the feed and dispatches one application when the candidate clicks Apply or Finish.
+- **Backend orchestrator:** owns candidate configuration, canonical job records, command leases, encrypted managed sessions, and application status history.
+- **Chrome companion:** performs the live workflow inside the candidate's authenticated normal Chrome session. The Indeed tab stays in the background unless manual action is required.
+
+The product Apply path uses the Chrome companion because Indeed accepted the user's ordinary Chrome session while repeatedly challenging automation-launched login browsers. The managed Playwright session implementation remains available as the remote-session abstraction and encrypted restore proof.
+
+## Project Layout
+
+```text
+src/
+  server.ts                         HTTP API
+  cli.ts                            CLI diagnostics
+  config/loadConfig.ts              Private candidate/preferences loader
+  indeed/IndeedApplicationRunner.ts Managed Playwright executor
+  indeed/IndeedSessionManager.ts     Fresh/restored browser contexts
+  storage/SessionStore.ts            AES-256-GCM session vault
+  storage/ApplicationStore.ts        Canonical jobs and statuses
+  workflow/companion.ts              Commands, leases, heartbeats, reports
+  workflow/statuses.ts               Status/reason enums
+../extension/
+  app-bridge.js                      Fast polling while JobNova is open
+  background.js                      Durable heartbeat, polling, and tab ownership
+  content.js                         Indeed job extraction
+  indeed-runner.js                   Guarded live application runner
+```
 
 ## Setup
 
-Install dependencies:
+From the repository root:
 
 ```bash
-cd backend
-npm install
+npm ci
+npm --prefix backend ci
+npm run dev:all
 ```
 
-Create local private files:
+The app runs at `http://localhost:3000` and the backend at `http://localhost:4100`.
+
+Load the companion once:
+
+1. Open `chrome://extensions`.
+2. Enable Developer mode.
+3. Select Load unpacked.
+4. Choose the repository's `extension` directory.
+5. Reload the extension after changing extension source files.
+
+Private files are ignored by Git:
+
+- `backend/.env`
+- `backend/config/candidate-profile.json`
+- `backend/config/job-preferences.json`
+- `backend/data/applications.json`
+- `backend/data/companion-commands.json`
+- `backend/data/browser-profile/`
+- `backend/data/sessions/`
+- `backend/data/resumes/`
+
+Create local configuration from the committed examples:
 
 ```bash
-cp .env.example .env
-cp config/candidate-profile.example.json config/candidate-profile.json
-cp config/job-preferences.example.json config/job-preferences.json
+cp backend/.env.example backend/.env
+cp backend/config/candidate-profile.example.json backend/config/candidate-profile.json
+cp backend/config/job-preferences.example.json backend/config/job-preferences.json
+openssl rand -base64 32
 ```
 
-Set `INDEED_SESSION_ENCRYPTION_KEY` in `.env` to a long random value.
+Put the generated value in `INDEED_SESSION_ENCRYPTION_KEY`, point `resumePath` at the candidate's real local resume, and replace every example profile/preference value. The loader rejects missing contact details, resume, work history, education, or a run limit above five.
 
-`INDEED_BROWSER_CHANNEL=chrome` tells Playwright to use the installed Google Chrome app instead of Chrome for Testing. `INDEED_USE_PERSISTENT_PROFILE=true` opens the manual login handoff in a dedicated normal Chrome profile under `data/browser-profile/` instead of an ephemeral browser context. This can make manual login behave more like a normal browser session, while still requiring the user to complete verification manually. `INDEED_RESTORE_WITH_PERSISTENT_PROFILE=false` keeps normal workflow runs tied to the encrypted saved session state rather than relying on a long-lived browser profile.
+## End-To-End Flow
 
-Private files are ignored by git:
+1. The candidate opens a relevant Indeed search in their authenticated Chrome profile.
+2. The companion sends visible supported listings to `POST /applications/queue-batch`.
+3. The backend canonicalizes listings by Indeed `jk`, rejects malformed metadata and external-only application results, and records accepted jobs as `pending`.
+4. Clicking Apply in JobNova creates an idempotent command and marks the application `in_progress`.
+5. The extension service worker or foreground app bridge claims the command with an expiring lease.
+6. The background worker opens or reuses the Indeed page without switching away from JobNova.
+7. The runner recognizes **Apply with Indeed**, follows same-tab or SmartApply tab transitions, fills known profile fields and configured answers, and advances safe steps.
+8. With `allowSubmit=true`, the runner clicks a recognized final submission control.
+9. The backend accepts `submitted` only when the runner observes an unambiguous Indeed confirmation.
+10. Ordinary required questions are relayed to a JobNova modal and resumed in the background after validation.
+11. Login, CAPTCHA, email/SMS verification, ambiguous resume selection, and non-relayable review steps bring the Indeed tab forward.
 
-- `.env`
-- `config/candidate-profile.json`
-- `config/job-preferences.json`
-- `data/applications.json`
-- `data/browser-profile/`
-- `data/sessions/`
-- `data/resumes/`
+External employer application sites are deliberately marked `skipped` with `external_application`; this minimal module automates only Indeed-hosted applications.
 
-## Commands
+## Session Storage And Restore
 
-```bash
-npm run indeed:login
-npm run indeed:check-session
-npm run indeed:import-session
-npm run dev
-npm run indeed:search
-npm run indeed:search -- --collect
-npm run indeed:queue-url -- --job-url=<url> --title="Role title" --company="Company"
-npm run indeed:apply
-npm run indeed:apply -- --run
-npm run indeed:resume -- --application-id=<id>
-npm run indeed:status
-```
+`SessionStore` serializes Playwright `storageState`, encrypts it with AES-256-GCM using `INDEED_SESSION_ENCRYPTION_KEY`, and stores only the encrypted envelope under `backend/data/sessions/`. Authentication material is never committed.
 
-All session-aware CLI commands accept `--session-name=<name>`; the HTTP API accepts the same value as `sessionName` in JSON bodies or route params.
+The managed-session sequence is:
 
-## HTTP API
+1. Start a visible handoff browser with `POST /sessions/start`.
+2. Complete login and verification manually.
+3. Save with `POST /sessions/:sessionName/save`.
+4. The backend encrypts storage state and closes the handoff browser only after a fresh-context restore check succeeds.
+5. Later managed runs decrypt the state into a fresh context and close that context after the operation, so the browser does not need to remain running.
 
-Start the local backend API:
+Indeed can expire or challenge a technically valid restored session. `check-session` and `diagnose-session` therefore probe the restored context and report `login` or `captcha` instead of treating successful decryption as proof of authentication.
 
-```bash
-npm run dev
-```
+The Chrome companion does not read or upload Chrome cookies. It relies on Chrome's own encrypted profile persistence for the live executor. Both executors sit behind the same application/status model, allowing a hosted remote-browser adapter to replace the local companion later.
 
-Default base URL: `http://localhost:4100`
+## Manual Verification And Resume
 
-Core endpoints:
+The runner pauses and records `manual_action_required` for:
 
-```txt
-GET  /health
-GET  /sessions
-POST /sessions/start               { "sessionName": "default" }
-GET  /sessions/:sessionName/inspect
-POST /sessions/:sessionName/save
-POST /sessions/:sessionName/cancel
-POST /sessions/check               { "sessionName": "default" }
-POST /sessions/import              { "sessionName": "default", "cdpUrl": "http://127.0.0.1:9222" }
-GET  /jobs/search-urls
-POST /jobs/collect                 { "sessionName": "default" }
-GET  /applications
-POST /applications/queue           { "jobUrl": "...", "title": "...", "company": "..." }
-POST /applications/apply           { "sessionName": "default", "limit": 3 }
-POST /applications/:id/resume      { "sessionName": "default" }
-```
+- `login`
+- `captcha`
+- `sms`
+- `email`
+- `unknown_field`
+- `review_required`
 
-The intended webapp login flow is:
+The application record stores the exact Indeed URL and last completed step. For an ordinary text, select, boolean, or single-choice employer question, it also stores a normalized question descriptor. JobNova validates the answer against that descriptor, stores it only on the application, and creates a new leased command that resumes from the saved URL. The runner receives those answers only while it owns that command.
 
-1. `POST /sessions/start` opens a dedicated visible browser session.
-2. The user manually logs into Indeed and completes email, SMS, CAPTCHA, or other verification.
-3. The webapp can poll `GET /sessions/:sessionName/inspect` to see whether a manual checkpoint is still visible.
-4. `POST /sessions/:sessionName/save` encrypts the authenticated session state and closes the browser.
-5. Future `POST /jobs/collect`, `POST /applications/apply`, and `POST /applications/:id/resume` calls restore the encrypted browser state into a fresh browser context without keeping the browser open continuously.
+Security checks and non-relayable screens still pause on Indeed. CAPTCHA and verification controls are detected from visible checkpoint elements and authentication URLs, not broad job-description text.
 
-This design scales by making `sessionName` a stand-in for a future authenticated user ID. Each user gets an isolated browser profile, encrypted session file, candidate profile, preferences, and application records.
+Failures such as a closed tab, expired lease, missing extension receiver, unsupported external redirect, or unconfirmed final click are recorded truthfully as `failed`, `skipped`, or `manual_action_required`. A button click alone is never treated as proof of submission.
 
-## Demo Path
-
-1. Start the frontend and backend locally.
-2. Open JobNova Settings and use the Indeed connection panel.
-3. Click **Start Login** to open the managed Indeed login handoff.
-4. Complete Indeed login and any email, SMS, or CAPTCHA verification manually.
-5. Click **Save Session**, then **Check** to verify encrypted session restore.
-6. Click **Collect Jobs** to collect a small set of relevant Austin/Remote jobs.
-7. Click **Status** to review saved application records.
-8. Click **Run Apply** to run the guarded workflow, which fills known profile fields and pauses for manual review or verification.
-
-## Browser Session Storage And Restore
-
-`npm run indeed:login` or `POST /sessions/start` opens Indeed in a visible browser. The user manually creates or signs into their account and completes any required email, phone, CAPTCHA, or other verification.
-
-After the user confirms login is complete, the module saves Playwright `storageState`, encrypts it with AES-256-GCM using `INDEED_SESSION_ENCRYPTION_KEY`, and writes it to `data/sessions/`.
-
-`npm run indeed:check-session` starts a new browser context, restores the encrypted session state, opens Indeed, and checks whether the session still appears authenticated. The browser does not need to remain running between commands.
-
-### Why This Is Not An Iframe Login
-
-The webapp can provide a polished login handoff panel, but the actual Indeed login page should not be embedded in a JobNova iframe. Job-site and identity-provider login pages commonly block iframe embedding, and a normal frontend tab cannot read Indeed cookies back out of another domain. Relying on the user's everyday Chrome profile would also be hard to scale safely because it ties automation to a personal browser process.
-
-The scalable pattern is a dedicated, isolated browser session owned by the backend workflow. The webapp starts that session, the user completes verification manually, and the backend stores only the encrypted browser session state needed for later restore.
-
-### Optional: Import Indeed Session From User-Launched Chrome
-
-If Cloudflare blocks the Playwright-launched login browser even when the user tries to complete verification manually, the module supports an explicit user-controlled Chrome DevTools import path.
-
-This does not read Chrome's cookie database directly. It connects only to a Chrome instance the user intentionally launches with a debugging port, reads browser cookies through Chrome DevTools Protocol, filters them down to Indeed domains, encrypts that filtered state, and saves it through `SessionStore`.
-
-Quit Chrome, then launch Chrome with remote debugging:
-
-```bash
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir="$HOME/Library/Application Support/Google/Chrome"
-```
-
-In that Chrome window, manually log into Indeed and complete any verification. Then in another terminal:
-
-```bash
-npm run indeed:import-session
-npm run indeed:check-session
-```
-
-Only use this path with your own browser profile and your own Indeed account.
-
-## Manual Verification And Failures
-
-The workflow must pause when it sees:
-
-- login prompts
-- CAPTCHA or human verification copy
-- SMS or phone verification
-- email verification
-- unknown required fields
-- final review screens when final review is required
-
-Paused applications should be marked `manual_action_required` with a reason such as `captcha`, `sms`, `email`, `login`, `unknown_field`, or `review_required`.
-
-The module does not use CAPTCHA solvers, proxy rotation, stealth plugins, or any anti-detection tooling.
-
-## Application Statuses
-
-Applications can be tracked as:
+## Application States
 
 - `pending`
 - `in_progress`
-- `manual_action_required`
 - `submitted`
 - `failed`
+- `manual_action_required`
 - `skipped`
 
-`npm run indeed:status` prints the local application store.
+Companion commands use `queued`, `leased`, `running`, `completed`, and `failed`. The service worker maintains a periodic readiness heartbeat even when no JobNova tab is open; the app bridge provides faster polling while the user is in JobNova. Heartbeats prevent the API from accepting an Apply dispatch when no current extension is available.
 
-## Search And Apply Flow
+## Core API
 
-After login/session restore is verified:
+```text
+GET  /health
+GET  /applications
+POST /applications/queue-batch
+POST /applications/:id/dispatch-companion
+POST /applications/:id/answer
+GET  /companion/status
+POST /companion/agents/heartbeat
+POST /companion/commands/claim
+POST /companion/commands/:id/profile
+POST /companion/commands/:id/heartbeat
+POST /companion/commands/:id/report
 
-1. Run `npm run indeed:search -- --collect`.
-2. The search runner opens a restored browser session, visits a small number of preference-derived Indeed search URLs, scores visible jobs against the local preference file, and saves suitable roles as `pending`.
-3. If result collection is blocked or a role is selected manually, run `npm run indeed:queue-url -- --job-url=<url> --title="Role title" --company="Company"`.
-4. Run `npm run indeed:apply -- --run` to process pending records.
+POST /sessions/start
+POST /sessions/:sessionName/save
+POST /sessions/check
+POST /sessions/diagnose
+```
 
-The application runner restores the Indeed session, opens each job, checks for manual checkpoints, clicks only recognizable apply controls, fills only known fields from the private candidate profile, uploads the configured resume when a file input is present, and stops for unknown required fields or final review.
+## Verification
 
-## Multi-User Extension
+```bash
+npm test
+npm run test:workflow
+npm run test:companion
+npm run test:extension-content
+npm run test:extension-runner
+npm run typecheck
+```
 
-To extend this prototype for multiple users:
+The tests prove encrypted session round trips, canonical job deduplication, exclusive leases, stale-token rejection, agent readiness, structured metadata extraction, **Apply with Indeed** handling, known-field filling, manual checkpoints, guarded final submission, and confirmation-only `submitted` reporting.
 
-- Add user authentication and a `users` table.
-- Store one encrypted session per user.
-- Store one candidate profile and job preference set per user.
-- Move secrets to a managed secret store or KMS.
-- Add a queue for per-user application workflows.
-- Run each user workflow in isolated browser contexts or containers.
-- Add audit logs and explicit consent records for every automated action.
-- Build a small web UI for manual checkpoints.
+## Multiple Users
 
-## Current Milestone
+To extend the module:
 
-Implemented:
+- Authenticate every API and extension agent.
+- Replace JSON stores with PostgreSQL and a transactional job queue.
+- Key profiles, job records, encrypted sessions, commands, and audit logs by `userId`.
+- Encrypt sessions with per-user data keys managed by KMS.
+- Run each user in an isolated remote browser context or container.
+- Stream manual checkpoints to the web app and expire access URLs quickly.
+- Add idempotency keys, rate limits, consent records, and per-user application limits.
 
-- Backend project scaffold
-- Private candidate/preference config examples
-- Local ignored candidate/preference config files
-- Encrypted session store
-- Visible Indeed login/session save command
-- Session restore/check command
-- Optional Indeed-only session import from user-launched Chrome over CDP
-- Application status store
-- Low-volume Indeed search URL generation
-- Optional `search --collect` job discovery and relevance scoring
-- Manual `queue-url` fallback for selected job URLs
-- Guarded application runner for pending jobs
-- Known-field candidate/profile filling
-- Resume upload attempt when a file input is present
-- Unknown-required-field detection
-- Final-review pause guard
-- Resume command for paused application records
-
-Next milestone:
-
-- Verify manual Indeed account creation/login with `indeed:login`.
-- Restore the session with `indeed:check-session`.
-- Test `search --collect` against the authenticated Indeed session.
-- Test one queued relevant job through `apply --run`, stopping before final submission.
+This is intentionally a small demonstration module, not a production bulk-application service.

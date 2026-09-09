@@ -17,20 +17,34 @@ import Link from "next/link";
 import { useState } from "react";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { MatchRing } from "@/components/MatchRing";
+import { getIndeedApplicationAction } from "@/services/indeedBackend";
 import type { Job } from "@/types/job";
 
 type JobDetailViewProps = {
   job: Job;
   isLiked: boolean;
   onToggleLiked: (jobId: string) => void;
+  onApplyJob?: (job: Job) => Promise<void> | void;
+  onRefreshStatus?: () => Promise<void> | void;
+  isApplying?: boolean;
+  applyMessage?: string;
 };
 
-export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProps) {
+export function JobDetailView({
+  job,
+  isLiked,
+  onToggleLiked,
+  onApplyJob,
+  onRefreshStatus,
+  isApplying = false,
+  applyMessage,
+}: JobDetailViewProps) {
   const [copied, setCopied] = useState(false);
   const locationParts = job.location.includes(",")
     ? job.location.split(",").map((part) => part.trim()).filter(Boolean)
     : [job.location];
   const cityLabel = locationParts.length > 1 ? locationParts.slice(0, 2).join(", ") : job.location;
+  const verificationUrl = job.manualQuestion ? undefined : getUsefulManualActionUrl(job);
 
   async function copyJobLink() {
     const url = `${window.location.origin}/jobs/${job.status.toLowerCase()}/${job.id}`;
@@ -43,6 +57,16 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
       setCopied(false);
     }
   }
+
+  function handleApply() {
+    if (isApplying || job.applicationStatus === "submitted") return;
+
+    if (job.isLiveIndeedJob && onApplyJob && job.applicationId) {
+      void onApplyJob(job);
+    }
+  }
+
+  const applyState = getApplyState(job, isApplying);
 
   return (
     <article className="min-w-0 overflow-hidden">
@@ -80,17 +104,47 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
           >
             <Heart aria-hidden="true" className={`h-5 w-5 ${isLiked ? "fill-violet text-violet" : ""}`} />
           </button>
-          <a
-            href={job.indeedUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-black px-4 text-[14px] font-medium text-white sm:flex-none sm:px-5"
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={applyState.disabled}
+            className={`inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-4 text-[14px] font-medium transition-shadow hover:shadow-md disabled:cursor-default disabled:hover:shadow-none sm:flex-none sm:px-5 ${applyState.className}`}
           >
-            <span className="truncate">Apply Now</span>
-            <ExternalLink aria-hidden="true" className="h-4 w-4 shrink-0" />
-          </a>
+            <span className="truncate">{applyState.label}</span>
+          </button>
         </div>
       </div>
+
+      {applyMessage || job.applicationStatus === "manual_action_required" ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 text-[12px] font-medium text-muted shadow-soft">
+          <span>
+            {applyMessage ??
+              `${formatApplicationStatus(job)}. Click Finish to retry the backend workflow after completing the manual step.`}
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+          {verificationUrl ? (
+            <a
+              href={verificationUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-8 items-center gap-1 rounded-full bg-ink px-3 text-[12px] font-medium text-white transition-shadow hover:shadow-md"
+            >
+              Continue in Indeed
+              <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
+            </a>
+          ) : null}
+          {job.applicationStatus === "manual_action_required" && onRefreshStatus ? (
+            <button
+              type="button"
+              onClick={() => void onRefreshStatus()}
+              className="inline-flex h-8 items-center rounded-full border border-zinc-200 bg-white px-3 text-[12px] font-medium text-ink transition-shadow hover:shadow-md"
+            >
+              Refresh status
+            </button>
+          ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div className="min-w-0 overflow-hidden rounded-xl bg-white px-4 py-5 shadow-soft sm:px-6 sm:py-6">
         <header className="border-b border-zinc-100 pb-5">
@@ -117,10 +171,10 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
                       rel="noreferrer"
                       className="text-zinc-400 transition-colors hover:text-violet hover:underline"
                     >
-                      Company name
+                      {job.company}
                     </a>
                   ) : (
-                    <span className="text-zinc-400">Company name</span>
+                    <span className="text-zinc-400">{job.company}</span>
                   )}
                 </div>
               </div>
@@ -148,11 +202,11 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
         <section className="flex flex-wrap gap-x-8 gap-y-3 border-b border-zinc-100 py-5 text-[13px] font-normal text-muted sm:gap-x-14">
           <span className="inline-flex items-center gap-2 whitespace-nowrap">
             <MapPin aria-hidden="true" className="h-4 w-4" />
-            United States
+            {job.country ?? "United States"}
           </span>
           <span className="inline-flex items-center gap-2 whitespace-nowrap">
             <BriefcaseBusinessIcon aria-hidden="true" className="h-4 w-4" />
-            Internship
+            {job.jobType ?? "Full time"}
           </span>
           <span className="inline-flex items-center gap-2 whitespace-nowrap">
             <Radio aria-hidden="true" className="h-4 w-4" />
@@ -160,7 +214,7 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
           </span>
           <span className="inline-flex items-center gap-2 whitespace-nowrap">
             <Clock3 aria-hidden="true" className="h-4 w-4" />
-            {job.skills.find((skill) => skill.includes("years")) ?? "5+ years exp"}
+            {job.experience ?? job.skills.find((skill) => skill.includes("years")) ?? "Experience not listed"}
           </span>
           <span className="inline-flex items-center gap-2 whitespace-nowrap">
             <Building2 aria-hidden="true" className="h-4 w-4" />
@@ -274,4 +328,129 @@ export function JobDetailView({ job, isLiked, onToggleLiked }: JobDetailViewProp
       </div>
     </article>
   );
+}
+
+function getApplyState(job: Job, isApplying: boolean) {
+  const action = getIndeedApplicationAction(job, isApplying);
+
+  if (action === "queued") {
+    return {
+      label: "Queued",
+      disabled: true,
+      className: "bg-violet/10 text-violet ring-1 ring-violet",
+    };
+  }
+
+  if (action === "opening") {
+    return {
+      label: "Opening",
+      disabled: true,
+      className: "bg-violet/10 text-violet ring-1 ring-violet",
+    };
+  }
+
+  if (action === "applying") {
+    return {
+      label: "Applying",
+      disabled: true,
+      className: "bg-violet/10 text-violet ring-1 ring-violet",
+    };
+  }
+
+  if (action === "applied") {
+    return {
+      label: "Applied",
+      disabled: true,
+      className: "bg-acid text-ink",
+    };
+  }
+
+  if (action === "finish") {
+    return {
+      label: "Finish",
+      disabled: false,
+      className: "bg-violet text-white",
+    };
+  }
+
+  if (action === "unsupported") {
+    return {
+      label: "Unsupported",
+      disabled: true,
+      className: "bg-zinc-100 text-muted",
+    };
+  }
+
+  if (action === "retry") {
+    return {
+      label: "Retry",
+      disabled: false,
+      className: "bg-white text-ink ring-1 ring-zinc-200",
+    };
+  }
+
+  return {
+    label: "Apply Now",
+    disabled: !job.isLiveIndeedJob,
+    className: job.isLiveIndeedJob ? "bg-black text-white" : "bg-zinc-100 text-muted",
+  };
+}
+
+function formatApplicationStatus(job: Job) {
+  if (job.applicationStatus === "in_progress") {
+    if (job.applicationLastStep === "queued_for_companion") return "Queued for automatic application";
+    if (job.applicationLastStep === "leased_by_companion") return "Opening authenticated Indeed session";
+    if (job.applicationLastStep?.startsWith("profile_fields_filled")) return "Profile completed; continuing application";
+    return "Applying automatically in Indeed";
+  }
+
+  if (job.applicationStatus === "manual_action_required") {
+    if (job.manualActionReason === "captcha" && job.applicationLastStep === "manual_checkpoint_before_apply") {
+      return "Waiting for trusted Chrome session";
+    }
+
+    return `Waiting for ${formatManualReason(job.manualActionReason)}`;
+  }
+
+  if (job.applicationStatus === "submitted") return "Application submitted";
+  if (job.applicationStatus === "failed") return job.applicationFailureReason ?? "Application failed";
+  if (job.applicationStatus === "skipped") {
+    if (job.applicationLastStep === "apply_button_not_found") return "Application page was not recognized; retry available";
+    if (job.applicationLastStep === "external_application") return "Unsupported: external employer application";
+    if (job.applicationLastStep === "invalid_job_metadata") return "Unsupported: invalid job posting";
+    return job.applicationFailureReason ?? "Application skipped";
+  }
+
+  return job.applicationStatus?.replaceAll("_", " ") ?? "Application pending";
+}
+
+function formatManualReason(reason?: string) {
+  if (reason === "captcha") return "CAPTCHA";
+  if (reason === "sms") return "SMS code";
+  if (reason === "email") return "email verification";
+  if (reason === "login") return "Indeed login";
+  if (reason === "unknown_field") return "profile answer";
+  if (reason === "review_required") return "review";
+  return "manual verification";
+}
+
+function getUsefulManualActionUrl(job: Job) {
+  if (!job.manualActionUrl) return undefined;
+
+  try {
+    const manualUrl = new URL(job.manualActionUrl);
+    const jobUrl = new URL(job.indeedUrl);
+    const sameJobPosting =
+      manualUrl.hostname === jobUrl.hostname &&
+      manualUrl.pathname === jobUrl.pathname &&
+      manualUrl.searchParams.get("jk") === jobUrl.searchParams.get("jk");
+
+    if (sameJobPosting) {
+      return undefined;
+    }
+  } catch {
+    return job.manualActionUrl;
+  }
+
+  return job.manualActionUrl;
 }

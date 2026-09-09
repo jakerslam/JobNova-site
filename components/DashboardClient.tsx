@@ -2,11 +2,13 @@
 
 import { useMemo } from "react";
 import { BriefcaseBusiness } from "lucide-react";
+import { ApplicationQuestionModal } from "@/components/ApplicationQuestionModal";
 import { DashboardShell } from "@/components/DashboardShell";
 import { FeedActionToolbar } from "@/components/FeedActionToolbar";
 import { InterviewPanel } from "@/components/InterviewPanel";
 import { JobCard } from "@/components/JobCard";
 import { useJobCollections } from "@/hooks/useJobCollections";
+import { useIndeedApply } from "@/hooks/useIndeedApply";
 import type { Job, JobStatus } from "@/types/job";
 
 type DashboardClientProps = {
@@ -15,18 +17,32 @@ type DashboardClientProps = {
 };
 
 export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
-  const { counts, likedJobIds, mergedJobs, toggleLiked } = useJobCollections(jobs);
+  const { counts, likedJobIds, mergedJobs, toggleLiked, refreshJobs } = useJobCollections(jobs);
+  const {
+    applyingJobId,
+    applyMessage,
+    manualQuestion,
+    applyToJob,
+    answerManualQuestion,
+    dismissManualQuestion,
+  } = useIndeedApply(refreshJobs);
 
   const visibleJobs = useMemo(() => {
+    const preferLiveJobs = (statusJobs: Job[]) => {
+      const liveJobs = statusJobs.filter((job) => job.isLiveIndeedJob);
+      return liveJobs.length > 0 ? liveJobs : statusJobs;
+    };
+
     if (initialStatus === "Liked") {
-      return mergedJobs.filter((job) => likedJobIds.has(job.id));
+      return preferLiveJobs(mergedJobs.filter((job) => likedJobIds.has(job.id)));
     }
 
     const filtered = mergedJobs.filter((job) => job.status === initialStatus);
-    return filtered.length ? filtered : mergedJobs.filter((job) => job.status === "Matched");
+    return filtered.length ? preferLiveJobs(filtered) : preferLiveJobs(mergedJobs.filter((job) => job.status === "Matched"));
   }, [initialStatus, likedJobIds, mergedJobs]);
 
   return (
+    <>
     <DashboardShell
       activeStatus={initialStatus}
       counts={counts}
@@ -34,6 +50,12 @@ export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
       rightPanel={<InterviewPanel />}
     >
       <FeedActionToolbar />
+
+      {applyMessage ? (
+        <div className="mb-3 rounded-full bg-white px-4 py-2 text-[12px] font-medium text-ink shadow-soft">
+          {applyMessage}
+        </div>
+      ) : null}
 
       <div className="mb-3 flex items-center justify-between px-1 lg:hidden">
         <div>
@@ -51,9 +73,20 @@ export function DashboardClient({ jobs, initialStatus }: DashboardClientProps) {
             isSelected={false}
             isSaved={likedJobIds.has(job.id)}
             onToggleSaved={toggleLiked}
+            onApplyJob={applyToJob}
+            onRefreshStatus={refreshJobs}
+            isApplying={applyingJobId === job.id}
           />
         ))}
       </div>
     </DashboardShell>
+    <ApplicationQuestionModal
+      key={manualQuestion ? `${manualQuestion.applicationId}:${manualQuestion.question.key}` : "closed"}
+      checkpoint={manualQuestion}
+      isSubmitting={Boolean(manualQuestion && applyingJobId === manualQuestion.jobId)}
+      onClose={dismissManualQuestion}
+      onSubmit={answerManualQuestion}
+    />
+    </>
   );
 }

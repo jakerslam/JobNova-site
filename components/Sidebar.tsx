@@ -54,7 +54,7 @@ export function Sidebar({ activeSection = "jobs" }: SidebarProps) {
                 <Link
                   key={item.label}
                   href={item.href}
-                  className={`flex h-[44px] w-full items-center gap-[14px] rounded-full px-[15px] text-left text-[18px] font-medium tracking-[-0.02em] transition-shadow ${
+                  className={`flex h-[44px] w-full items-center gap-3 rounded-full px-3 text-left text-[16px] font-medium tracking-[-0.02em] transition-shadow ${
                     isActive
                       ? "bg-violet text-white shadow-sm hover:shadow-md"
                       : "text-ink hover:bg-zinc-50 hover:shadow-sm"
@@ -63,7 +63,7 @@ export function Sidebar({ activeSection = "jobs" }: SidebarProps) {
                   <span className="grid h-6 w-6 shrink-0 place-items-center">
                     <item.icon className="max-h-6 max-w-6" active={isActive} />
                   </span>
-                  <span className="truncate">{item.label}</span>
+                  <span className="whitespace-nowrap">{item.label}</span>
                 </Link>
               );
             })}

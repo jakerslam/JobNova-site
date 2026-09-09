@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JobNova</title>
+    <style>
+      body {
+        color: #1d2633;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        width: 280px;
+      }
+
+      main {
+        padding: 16px;
+      }
+
+      h1 {
+        font-size: 17px;
+        line-height: 1.2;
+        margin: 0;
+      }
+
+      p {
+        color: #6b7280;
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 8px 0 14px;
+      }
+
+      button {
+        background: #9f7aea;
+        border: 0;
+        border-radius: 999px;
+        color: white;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        height: 38px;
+        width: 100%;
+      }
+
+      #status {
+        color: #6b7280;
+        display: block;
+        font-size: 12px;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>JobNova Companion</h1>
+      <p>Open an Indeed search page, then send visible jobs to the local JobNova backend.</p>
+      <button id="collect" type="button">Send visible jobs</button>
+      <span id="status">Ready</span>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

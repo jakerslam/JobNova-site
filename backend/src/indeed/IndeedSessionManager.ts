@@ -58,13 +58,50 @@ export class IndeedSessionManager {
 
     try {
       await session.page.goto("https://myjobs.indeed.com/", { waitUntil: "domcontentloaded" });
+      const currentUrl = session.page.url();
+      const title = await session.page.title().catch(() => "");
       const manualCheck = await detectManualCheckpoint(session.page);
 
       if (!manualCheck.ok) {
-        return manualCheck;
+        return {
+          ...manualCheck,
+          currentUrl,
+          title,
+        };
       }
 
-      return { ok: true as const };
+      return {
+        ok: true as const,
+        currentUrl,
+        title,
+      };
+    } finally {
+      await session.close();
+    }
+  }
+
+  async diagnoseSession() {
+    const storage = await this.sessionStore.inspect(this.sessionName);
+    const session = await this.openRestoredSession();
+
+    try {
+      const probes = [];
+      for (const url of ["https://www.indeed.com/", "https://myjobs.indeed.com/"]) {
+        await session.page.goto(url, { waitUntil: "domcontentloaded" });
+        const manualCheck = await detectManualCheckpoint(session.page);
+        probes.push({
+          targetUrl: url,
+          currentUrl: session.page.url(),
+          title: await session.page.title().catch(() => ""),
+          manualCheck,
+        });
+      }
+
+      return {
+        ok: probes.every((probe) => probe.manualCheck.ok),
+        storage,
+        probes,
+      };
     } finally {
       await session.close();
     }

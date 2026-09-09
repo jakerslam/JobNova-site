@@ -6,7 +6,10 @@
   "scripts": {
     "indeed:login": "tsx src/cli.ts login",
     "indeed:check-session": "tsx src/cli.ts check-session",
+    "indeed:diagnose-session": "tsx src/cli.ts diagnose-session",
     "indeed:import-session": "tsx src/cli.ts import-session",
+    "indeed:chrome-status": "tsx src/cli.ts chrome-status",
+    "indeed:launch-chrome": "tsx src/cli.ts launch-chrome",
     "indeed:status": "tsx src/cli.ts status",
     "indeed:search": "tsx src/cli.ts search",
     "indeed:apply": "tsx src/cli.ts apply",
@@ -15,7 +18,12 @@
     "dev": "tsx src/server.ts",
     "build": "tsc",
     "start": "node --enable-source-maps dist/server.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:workflow && npm run test:companion && npm run test:extension-content && npm run test:extension-runner",
+    "test:workflow": "tsx src/tests/workflow-test.ts",
+    "test:companion": "tsx src/tests/companion-command-test.ts",
+    "test:extension-content": "tsx src/tests/extension-content-test.ts",
+    "test:extension-runner": "tsx src/tests/indeed-runner-test.ts"
   },
   "dependencies": {
     "chrome-remote-interface": "^0.34.0",

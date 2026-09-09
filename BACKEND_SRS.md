@@ -29,7 +29,7 @@ This module is intended for an engineering ability test. It is not a production 
 - High-volume scraping or bulk applications.
 - Applying with fake, incomplete, or irrelevant candidate information.
 - Production-grade multi-user auth, billing, or queue infrastructure.
-- Direct integration into the existing front-end dashboard, unless added later as a separate phase.
+- Production deployment of the local Chrome companion.
 
 ## 3. Compliance And Safety Requirements
 
@@ -45,13 +45,13 @@ This module is intended for an engineering ability test. It is not a production 
 
 - Runtime: Node.js
 - Language: TypeScript
-- Browser automation: Playwright
+- Browser automation: authenticated Chrome companion for the live workflow; Playwright for managed-session restore and fixtures
 - Persistence: local JSON for the minimal prototype, with SQLite as the recommended production upgrade
 - Session storage: encrypted Playwright `storageState` JSON
 - Secrets: `.env` file loaded locally
-- Interface: CLI-first, with optional lightweight HTTP service later
+- Interface: HTTP service used by the Next.js app, with CLI diagnostics
 
-This fits the existing project stack while keeping the backend test isolated from the deployed static front end.
+This fits the existing project stack while keeping personal data and browser-session artifacts outside the deployed static front end.
 
 ## 5. Proposed Directory Structure
 
@@ -77,11 +77,16 @@ backend/
       ApplicationStore.ts
       SessionStore.ts
     workflow/
-      AutoApplyWorkflow.ts
+      companion.ts
       statuses.ts
       types.ts
   data/
     .gitkeep
+extension/
+  app-bridge.js
+  background.js
+  content.js
+  indeed-runner.js
 ```
 
 Private files that must be ignored:
@@ -91,8 +96,8 @@ backend/.env
 backend/data/*.sqlite
 backend/data/sessions/*
 backend/data/resumes/*
-backend/src/config/candidateProfile.ts
-backend/src/config/jobPreferences.ts
+backend/config/candidate-profile.json
+backend/config/job-preferences.json
 ```
 
 ## 6. Data Model
@@ -150,9 +155,19 @@ type ApplicationRecord = {
   title: string;
   company: string;
   location?: string;
+  supportsIndeedApply?: boolean;
   status: ApplicationStatus;
   lastStep?: string;
   manualActionReason?: "captcha" | "sms" | "email" | "login" | "unknown_field" | "review_required";
+  manualActionUrl?: string;
+  manualQuestion?: {
+    key: string;
+    label: string;
+    type: "text" | "single_choice" | "boolean" | "select";
+    options?: string[];
+    required: boolean;
+  };
+  applicationAnswers?: Record<string, string>;
   failureReason?: string;
   submittedAt?: string;
   createdAt: string;
@@ -164,16 +179,16 @@ type ApplicationRecord = {
 
 ### FR-1: Manual Account Setup
 
-- The system must provide a CLI command to open Indeed in a visible browser.
+- The system must support manual Indeed account creation and login in normal Chrome.
 - The user must create or log into an Indeed account manually.
 - The user must complete email, phone, CAPTCHA, or other verification manually.
 - After successful login, the system must save the browser session.
 
 Acceptance criteria:
 
-- Running `npm run indeed:login` opens a non-headless browser.
+- The candidate can use their normal authenticated Chrome profile through the companion.
 - User can manually complete login/verification.
-- Session state is saved after confirmation.
+- The managed-session path can save and restore encrypted state after confirmation.
 - No password is stored by the app.
 
 ### FR-2: Secure Session Storage And Restore
@@ -198,8 +213,8 @@ Acceptance criteria:
 
 Acceptance criteria:
 
-- Missing `candidateProfile.ts` causes a clear setup error.
-- Missing resume path, email, phone, or name prevents auto-apply.
+- Missing `candidate-profile.json` causes a clear setup error.
+- Missing resume path, email, phone, name, work experience, or education prevents auto-apply.
 - Example config documents the expected shape without personal data.
 
 ### FR-4: Job Discovery
@@ -211,12 +226,13 @@ Acceptance criteria:
 Acceptance criteria:
 
 - `maxApplicationsPerRun` limits the run.
+- The loader rejects a run limit above five.
 - Jobs with excluded keywords are skipped.
 - Jobs without a clear apply path are marked `skipped` or `manual_action_required`.
 
 ### FR-5: Application Execution
 
-- The system must open each selected job in a visible browser context.
+- The system must open each selected job in the authenticated Chrome context, initially in the background.
 - The system must attempt to complete only recognized form fields.
 - The system must upload the configured resume only when the flow requests a resume.
 - The system must not guess answers to ambiguous required questions.
@@ -226,20 +242,22 @@ Acceptance criteria:
 
 - Known fields such as name, email, phone, links, resume, work authorization, and location can be filled from the profile.
 - Unknown required fields pause the workflow.
+- Relayable text and choice questions can be answered in JobNova and resumed at the same Indeed URL.
 - Submitted applications are recorded as `submitted`.
+- A final-button click without an Indeed confirmation must not be recorded as `submitted`.
 - Failed applications include a failure reason.
 
 ### FR-6: Manual Pause And Resume
 
 - The workflow must detect common manual checkpoints.
-- The workflow must leave the browser open when manual input is required.
+- The workflow must bring the Indeed tab forward when manual input is required.
 - The workflow must save the current application state before pausing.
 - The workflow must provide a resume command.
 
 Acceptance criteria:
 
 - CAPTCHA, SMS, email verification, login expiration, unknown required fields, and final review screens are represented as manual action reasons.
-- Running `npm run indeed:resume -- --application-id <id>` resumes a paused application.
+- Clicking Finish in JobNova or running the resume CLI creates an idempotent leased resume command.
 - Resuming does not duplicate submitted applications.
 
 ### FR-7: Application Status Tracking
@@ -274,7 +292,7 @@ Acceptance criteria:
 - Selectors should be isolated in one file where possible.
 - Logs should avoid printing secrets or full personal profile data.
 - Workflow steps should be idempotent enough to resume safely.
-- Browser automation should run visibly for actions that may require manual review.
+- Browser automation should remain in the background during recognized automatic steps and become visible for manual review.
 - The system should prefer explicit failure over unsafe guessing.
 
 ## 9. CLI Commands
@@ -343,7 +361,7 @@ To support multiple users later:
 
 1. Scaffold backend TypeScript project and `.gitignore` updates.
 2. Add profile/preferences example configs.
-3. Implement status types and SQLite application store.
+3. Implement status types and a replaceable local JSON application store.
 4. Implement encrypted session store.
 5. Implement manual login and session restore commands.
 6. Implement manual checkpoint detector.
@@ -352,10 +370,12 @@ To support multiple users later:
 9. Implement pause/resume/status commands.
 10. Add backend README and final validation notes.
 
-## 14. Open Questions
+The prototype intentionally uses local JSON to keep the test module small. The storage classes are the boundary to replace with SQLite or a hosted database for multi-user deployment.
 
-- Should the runner stop before final submission by default, or submit automatically when the application is fully recognized?
-- Will the tester use a newly created Indeed account or an existing account?
-- Where should the private resume file live locally?
-- Should this backend live inside this repo under `backend/`, or in a separate repo for the backend test?
-- Should the frontend show application records later, or is CLI/status output enough for the test?
+## 14. Resolved Decisions
+
+- A direct JobNova Apply click sets `allowSubmit=true`; fixture and smoke testing use review mode.
+- The live workflow uses the candidate's authenticated normal Chrome session.
+- Private resume and profile files live under ignored backend paths.
+- Backend, frontend, and extension live in the same repository.
+- Application records and manual states are visible in the JobNova feed and detail views.

@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "JobNova Indeed Companion",
+  "description": "Collect Indeed jobs and run guarded applications in the user's authenticated Chrome session.",
+  "version": "0.4.1",
+  "permissions": ["activeTab", "alarms", "scripting", "storage", "tabs", "windows"],
+  "host_permissions": [
+    "https://*.indeed.com/*",
+    "http://localhost:3000/*",
+    "http://localhost:4100/*",
+    "https://jakerslam.github.io/JobNova-site/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.indeed.com/*"],
+      "js": ["content.js", "indeed-runner.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["http://localhost:3000/*", "https://jakerslam.github.io/JobNova-site/*"],
+      "js": ["app-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "JobNova"
+  }
+}

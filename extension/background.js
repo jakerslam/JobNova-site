@@ -1,0 +1,553 @@
+const backendUrl = "http://localhost:4100";
+const appFeedUrl = "http://localhost:3000/jobs/matched";
+const activeCommandsKey = "jobnovaActiveCompanionCommands";
+const companionAlarmName = "jobnovaCompanionPoll";
+const runningCompanionCommands = new Map();
+let activeCommandsHydration;
+let companionPollInFlight = false;
+
+void restoreActiveCommands();
+void initializeCompanionAgent();
+
+chrome.runtime.onInstalled.addListener(() => {
+  void initializeCompanionAgent();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void initializeCompanionAgent();
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === companionAlarmName) void pollBackendForCompanionCommand();
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (!message) return false;
+
+  if (message.type === "JOBNOVA_QUEUE_JOBS") {
+    queueJobs(message.jobs ?? [])
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, message: error instanceof Error ? error.message : String(error) }));
+    return true;
+  }
+
+  if (message.type === "JOBNOVA_EXECUTE_COMPANION_COMMAND") {
+    executeCompanionCommand(message.command)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, message: error instanceof Error ? error.message : String(error) }));
+    return true;
+  }
+
+  if (message.type === "JOBNOVA_INDEED_RUNNER_READY") {
+    handleRunnerReady(message, _sender)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, message: error instanceof Error ? error.message : String(error) }));
+    return true;
+  }
+
+  if (message.type === "JOBNOVA_FETCH_COMPANION_PROFILE") {
+    fetchCompanionProfile(message)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, message: error instanceof Error ? error.message : String(error) }));
+    return true;
+  }
+
+  if (message.type === "JOBNOVA_CHECK_COMPANION_OWNER") {
+    checkCompanionOwner(message, _sender)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, message: error instanceof Error ? error.message : String(error) }));
+    return true;
+  }
+
+  if (message.type === "JOBNOVA_REPORT_COMPANION_RESULT" || message.type === "JOBNOVA_REPORT_COMPANION_STEP") {
+    const report = message.type === "JOBNOVA_REPORT_COMPANION_STEP"
+      ? { status: "in_progress", lastStep: "companion_tab_ready" }
+      : {
+          status: message.status,
+          lastStep: message.lastStep,
+          manualActionReason: message.manualActionReason,
+          manualActionUrl: message.manualActionUrl,
+          manualQuestion: message.manualQuestion,
+          failureReason: message.failureReason,
+        };
+    reportCompanionResult(message, report)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, message: error instanceof Error ? error.message : String(error) }));
+    return true;
+  }
+
+  return false;
+});
+
+async function executeCompanionCommand(command) {
+  if (!command?.id || !command.jobUrl || !command.agentId || !command.leaseToken) {
+    throw new Error("The companion command is missing its lease or job URL.");
+  }
+
+  await hydrateActiveCommands();
+  const existing = runningCompanionCommands.get(command.id);
+  if (existing) return { ok: true, commandId: command.id, tabId: existing.tabId, duplicate: true };
+
+  const state = {
+    command,
+    tabId: null,
+    previousTabIds: [],
+    lastSentByTab: {},
+    heartbeatTimer: null,
+  };
+  runningCompanionCommands.set(command.id, state);
+  await saveActiveCommands();
+
+  try {
+    if (!isIndeedOwnedUrl(command.jobUrl)) {
+      const result = await reportCompanionResult(command, {
+        status: "skipped",
+        lastStep: "apply_button_not_found",
+        failureReason: "External employer application links are outside this minimal Indeed workflow.",
+      });
+      await clearCompanionCommand(command.id);
+      return { ok: true, skipped: true, result };
+    }
+
+    const tab = await openOrReuseIndeedTab(command.jobUrl);
+    state.tabId = tab.id;
+    await saveActiveCommands();
+    await startCompanionHeartbeat(state, false);
+    await sendRunnerCommand(state, tab.id, tab.url || command.jobUrl);
+    return { ok: true, commandId: command.id, tabId: tab.id };
+  } catch (error) {
+    await stopCompanionCommand(command.id, "extension_execution_error", error instanceof Error ? error.message : String(error));
+    throw error;
+  }
+}
+
+async function initializeCompanionAgent() {
+  await chrome.alarms.create(companionAlarmName, { periodInMinutes: 0.5 });
+  await pollBackendForCompanionCommand();
+}
+
+async function pollBackendForCompanionCommand() {
+  if (companionPollInFlight) return;
+  companionPollInFlight = true;
+
+  try {
+    const agentId = await getCompanionAgentId();
+    await postBackendJson("/companion/agents/heartbeat", {
+      agentId,
+      extensionVersion: chrome.runtime.getManifest().version,
+    });
+    const payload = await postBackendJson("/companion/commands/claim", { agentId });
+    if (payload.command) await executeCompanionCommand(payload.command);
+  } catch {
+    // The local backend is optional while Chrome is open; the next alarm retries.
+  } finally {
+    companionPollInFlight = false;
+  }
+}
+
+async function getCompanionAgentId() {
+  const { jobnovaAgentId } = await chrome.storage.local.get("jobnovaAgentId");
+  if (jobnovaAgentId) return jobnovaAgentId;
+
+  const agentId = crypto.randomUUID();
+  await chrome.storage.local.set({ jobnovaAgentId: agentId });
+  return agentId;
+}
+
+async function handleRunnerReady(message, sender) {
+  const tab = sender?.tab;
+  if (!tab?.id || !isIndeedOwnedUrl(message.href || tab.url || "")) {
+    return { ok: false, message: "The runner ready message did not come from an Indeed-owned tab." };
+  }
+
+  await hydrateActiveCommands();
+  const state = findStateForTab(tab);
+  if (!state) return { ok: false, message: "No active companion command is assigned to this Indeed tab." };
+
+  if (state.tabId !== tab.id) {
+    if (state.tabId !== null && !state.previousTabIds.includes(state.tabId)) state.previousTabIds.push(state.tabId);
+    state.tabId = tab.id;
+    await saveActiveCommands();
+  }
+
+  await startCompanionHeartbeat(state, false);
+  await sendRunnerCommand(state, tab.id, message.href || tab.url);
+  return { ok: true, commandId: state.command.id };
+}
+
+function findStateForTab(tab) {
+  for (const state of runningCompanionCommands.values()) {
+    if (state.tabId === tab.id) return state;
+    if (tab.openerTabId && (tab.openerTabId === state.tabId || state.previousTabIds.includes(tab.openerTabId))) return state;
+    if (tab.url && tab.url === state.command.jobUrl) return state;
+  }
+  return undefined;
+}
+
+async function fetchCompanionProfile(message) {
+  const state = await getActiveState(message.commandId);
+  assertLeaseMessageMatches(state, message);
+  const payload = await postBackendJson(`/companion/commands/${encodeURIComponent(message.commandId)}/profile`, {
+    agentId: message.agentId,
+    leaseToken: message.leaseToken,
+  });
+  return { ok: true, profile: payload };
+}
+
+async function checkCompanionOwner(message, sender) {
+  const state = await getActiveState(message.commandId);
+  return {
+    ok: true,
+    isCurrentTab: Boolean(state && sender?.tab?.id && state.tabId === sender.tab.id),
+  };
+}
+
+async function reportCompanionResult(message, report) {
+  const command = message.command || {
+    id: message.commandId,
+    agentId: message.agentId,
+    leaseToken: message.leaseToken,
+  };
+  const state = await getActiveState(command.id);
+  assertLeaseMessageMatches(state, command);
+  const payload = await postBackendJson(`/companion/commands/${encodeURIComponent(command.id)}/report`, {
+    agentId: command.agentId,
+    leaseToken: command.leaseToken,
+    ...report,
+  });
+
+  if (isTerminalStatus(report.status)) {
+    if (report.status === "manual_action_required" && !report.manualQuestion) {
+      await revealManualActionTab(state).catch(() => undefined);
+    }
+    await clearCompanionCommand(command.id);
+  } else if (payload.command) {
+    state.command = payload.command;
+    await saveActiveCommands();
+    await startCompanionHeartbeat(state, false);
+  }
+
+  return { ok: true, ...payload };
+}
+
+async function revealManualActionTab(state) {
+  if (!state?.tabId) return;
+  const tab = await chrome.tabs.update(state.tabId, { active: true });
+  if (tab?.windowId) await chrome.windows.update(tab.windowId, { focused: true });
+}
+
+function assertLeaseMessageMatches(state, message) {
+  if (!state || state.command.agentId !== message.agentId || state.command.leaseToken !== message.leaseToken) {
+    throw new Error("The active companion lease does not match this runner message.");
+  }
+}
+
+async function startCompanionHeartbeat(state, sendImmediately) {
+  if (state.heartbeatTimer) return;
+  if (sendImmediately) await heartbeatCompanionCommand(state);
+
+  state.heartbeatTimer = setInterval(() => {
+    heartbeatCompanionCommand(state).catch((error) => {
+      stopCompanionCommand(
+        state.command.id,
+        "companion_heartbeat_error",
+        error instanceof Error ? error.message : String(error),
+      );
+    });
+  }, 10_000);
+}
+
+async function heartbeatCompanionCommand(state) {
+  const payload = await postBackendJson(`/companion/commands/${encodeURIComponent(state.command.id)}/heartbeat`, {
+    agentId: state.command.agentId,
+    leaseToken: state.command.leaseToken,
+    lastStep: state.command.lastStep || "companion_heartbeat",
+  });
+  if (payload.command) {
+    state.command = payload.command;
+    await saveActiveCommands();
+  }
+  return payload;
+}
+
+async function stopCompanionCommand(commandId, lastStep, failureReason) {
+  const state = await getActiveState(commandId);
+  if (!state) return;
+  if (state.heartbeatTimer) clearInterval(state.heartbeatTimer);
+
+  await postBackendJson(`/companion/commands/${encodeURIComponent(commandId)}/report`, {
+    agentId: state.command.agentId,
+    leaseToken: state.command.leaseToken,
+    status: "failed",
+    lastStep,
+    failureReason,
+  }).catch(() => undefined);
+  await clearCompanionCommand(commandId);
+}
+
+async function clearCompanionCommand(commandId) {
+  const state = runningCompanionCommands.get(commandId);
+  if (state?.heartbeatTimer) clearInterval(state.heartbeatTimer);
+  runningCompanionCommands.delete(commandId);
+  await saveActiveCommands();
+}
+
+async function getActiveState(commandId) {
+  await hydrateActiveCommands();
+  return runningCompanionCommands.get(commandId);
+}
+
+async function hydrateActiveCommands() {
+  if (!activeCommandsHydration) activeCommandsHydration = loadActiveCommands();
+  return activeCommandsHydration;
+}
+
+async function loadActiveCommands() {
+  const stored = await chrome.storage.session.get(activeCommandsKey);
+  const active = stored[activeCommandsKey] || {};
+  for (const [commandId, storedState] of Object.entries(active)) {
+    runningCompanionCommands.set(commandId, { ...storedState, heartbeatTimer: null });
+  }
+}
+
+async function restoreActiveCommands() {
+  await hydrateActiveCommands();
+  for (const state of runningCompanionCommands.values()) {
+    try {
+      await startCompanionHeartbeat(state, true);
+      const tab = state.tabId === null
+        ? await openOrReuseIndeedTab(state.command.jobUrl)
+        : await chrome.tabs.get(state.tabId);
+      if (!tab?.id || !isIndeedOwnedUrl(tab.url || "")) {
+        await reportCompanionResult(state.command, {
+          status: "skipped",
+          lastStep: "apply_button_not_found",
+          failureReason: "The active application tab left Indeed for an unsupported external employer flow.",
+        });
+        continue;
+      }
+      state.tabId = tab.id;
+      await saveActiveCommands();
+      await sendRunnerCommand(state, tab.id, tab.url, true);
+    } catch (error) {
+      await stopCompanionCommand(
+        state.command.id,
+        "companion_restore_error",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+}
+
+async function saveActiveCommands() {
+  const active = {};
+  for (const [commandId, state] of runningCompanionCommands) {
+    active[commandId] = {
+      command: state.command,
+      tabId: state.tabId,
+      previousTabIds: state.previousTabIds,
+      lastSentByTab: state.lastSentByTab,
+    };
+  }
+  await chrome.storage.session.set({ [activeCommandsKey]: active });
+}
+
+async function sendRunnerCommand(state, tabId, pageUrl, force = false) {
+  const key = String(tabId);
+  if (!force && state.lastSentByTab[key] === pageUrl) return { ok: true, duplicate: true };
+
+  const acknowledgement = await sendToTab(tabId, {
+    type: "JOBNOVA_RUN_INDEED_COMMAND",
+    command: state.command,
+  });
+  if (!acknowledgement?.ok) {
+    throw new Error(acknowledgement?.message || "The Indeed runner did not acknowledge the command.");
+  }
+
+  state.lastSentByTab[key] = pageUrl;
+  await saveActiveCommands();
+  return acknowledgement;
+}
+
+async function openOrReuseIndeedTab(jobUrl) {
+  const tabs = await chrome.tabs.query({});
+  let tab = tabs.find((candidate) => candidate.url === jobUrl);
+
+  if (tab?.id) {
+    tab = await chrome.tabs.get(tab.id);
+  } else {
+    tab = await chrome.tabs.create({ active: false, url: jobUrl });
+  }
+
+  if (!tab?.id) throw new Error("Chrome did not provide an Indeed tab id.");
+  await waitForTabComplete(tab.id);
+  return chrome.tabs.get(tab.id);
+}
+
+function waitForTabComplete(tabId) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timeout = setTimeout(() => finish(new Error("Timed out waiting for the Indeed tab to load.")), 30_000);
+
+    const finish = (error, tab) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      if (error) reject(error);
+      else resolve(tab);
+    };
+
+    const onUpdated = (updatedTabId, changeInfo, tab) => {
+      if (updatedTabId === tabId && changeInfo.status === "complete") finish(undefined, tab);
+    };
+
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.get(tabId).then((currentTab) => {
+      if (currentTab.status === "complete") finish(undefined, currentTab);
+    }).catch((error) => finish(error));
+  });
+}
+
+async function sendToTab(tabId, message) {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await chrome.tabs.sendMessage(tabId, message);
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0 && isMissingReceiverError(error)) {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ["indeed-runner.js"],
+        }).catch(() => undefined);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  throw new Error(lastError instanceof Error ? lastError.message : "The Indeed content script could not be reached.");
+}
+
+function isMissingReceiverError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /Receiving end does not exist|Could not establish connection/i.test(message);
+}
+
+async function postBackendJson(path, body) {
+  const response = await fetch(`${backendUrl}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || payload.message || "The JobNova backend rejected the request.");
+  return payload;
+}
+
+function isTerminalStatus(status) {
+  return status === "submitted" || status === "manual_action_required" || status === "failed" || status === "skipped";
+}
+
+function isIndeedOwnedUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && (url.hostname === "indeed.com" || url.hostname.endsWith(".indeed.com"));
+  } catch {
+    return false;
+  }
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  for (const state of runningCompanionCommands.values()) {
+    if (state.tabId === tabId) {
+      void stopCompanionCommand(state.command.id, "indeed_tab_closed", "The Indeed tab was closed before the guarded workflow completed.");
+    }
+  }
+});
+
+chrome.tabs.onCreated.addListener((tab) => {
+  if (!tab.id || !tab.openerTabId) return;
+  void adoptCompanionChildTab(tab);
+});
+
+async function adoptCompanionChildTab(tab) {
+  await hydrateActiveCommands();
+  const state = Array.from(runningCompanionCommands.values()).find(
+    (candidate) => candidate.tabId === tab.openerTabId || candidate.previousTabIds.includes(tab.openerTabId),
+  );
+  if (!state || !tab.id) return;
+
+  if (state.tabId !== null && !state.previousTabIds.includes(state.tabId)) {
+    state.previousTabIds.push(state.tabId);
+  }
+  state.tabId = tab.id;
+  await chrome.tabs.update(tab.id, { active: false }).catch(() => undefined);
+  await saveActiveCommands();
+}
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!changeInfo.url && changeInfo.status !== "complete") return;
+  void handleActiveTabUpdate(tabId, changeInfo.url || tab.url || "", changeInfo.status);
+});
+
+async function handleActiveTabUpdate(tabId, url, status) {
+  await hydrateActiveCommands();
+  const state = Array.from(runningCompanionCommands.values()).find((candidate) => candidate.tabId === tabId);
+  if (!state || !url) return;
+
+  if (!isIndeedOwnedUrl(url)) {
+      await reportCompanionResult(state.command, {
+        status: "skipped",
+        lastStep: "external_application",
+        failureReason: "Indeed redirected this application to an unsupported external employer site.",
+    }).catch(() => clearCompanionCommand(state.command.id));
+    return;
+  }
+
+  if (status === "complete") {
+    await sendRunnerCommand(state, tabId, url).catch((error) => stopCompanionCommand(
+      state.command.id,
+      "extension_receiver_error",
+      error instanceof Error ? error.message : String(error),
+    ));
+  }
+}
+
+async function queueJobs(jobs) {
+  let response;
+
+  try {
+    response = await fetch(`${backendUrl}/applications/queue-batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobs }),
+    });
+  } catch {
+    throw new Error('Cannot reach the JobNova backend. Run: cd "/Users/jay/Document (Lcl)/Coding/Career dashboard" && npm run dev:all');
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || payload.error || "Unable to queue Indeed jobs.");
+
+  const appTab = await openOrRefreshJobNovaFeed();
+  return {
+    ok: true,
+    ...payload,
+    message: `${payload.message || `Queued ${jobs.length} Indeed job${jobs.length === 1 ? "" : "s"} from the browser companion.`} Opened JobNova feed.`,
+    appTabId: appTab?.id,
+  };
+}
+
+async function openOrRefreshJobNovaFeed() {
+  const tabs = await chrome.tabs.query({});
+  const appTab = tabs.find((tab) => tab.url?.startsWith("http://localhost:3000/"));
+  const refreshUrl = `${appFeedUrl}?refresh=${Date.now()}`;
+
+  if (appTab?.id) {
+    const updatedTab = await chrome.tabs.update(appTab.id, { active: true, url: refreshUrl });
+    if (updatedTab.windowId) await chrome.windows.update(updatedTab.windowId, { focused: true }).catch(() => undefined);
+    return updatedTab;
+  }
+
+  return chrome.tabs.create({ active: true, url: refreshUrl });
+}

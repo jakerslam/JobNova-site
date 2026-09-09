@@ -2,11 +2,13 @@
 
 Internship application project for a Figma-informed AI job-search dashboard.
 
-The project implements a JobNova-style career dashboard with matched jobs, liked jobs, applied jobs, job detail pages, temporary saved-state persistence, backend-ready service boundaries, and responsive H5/mobile behavior.
+The project implements a JobNova-style career dashboard with matched jobs, liked jobs, applied jobs, job detail pages, temporary saved-state persistence, a local Indeed automation backend, and responsive H5/mobile behavior.
 
 ## Live Demo
 
 [https://jakerslam.github.io/JobNova-site/](https://jakerslam.github.io/JobNova-site/)
+
+The hosted URL demonstrates the responsive frontend with sample data. The Indeed workflow runs locally because it depends on a private candidate profile, encrypted session material, a local backend, and the candidate's authenticated Chrome extension.
 
 ## Tech Stack
 
@@ -16,6 +18,9 @@ The project implements a JobNova-style career dashboard with matched jobs, liked
 - Tailwind CSS
 - Lucide React icons plus custom SVG icons from the supplied design assets
 - Local API route handlers for backend-ready data access
+- Local Node/TypeScript backend for the Indeed workflow
+- Playwright for encrypted managed-session storage and restore verification
+- Chrome extension companion for authenticated job collection and guarded Indeed Apply execution
 - Browser `localStorage` for temporary prototype state
 
 This stack was chosen because it supports SEO metadata, routeable product pages, typed data models, server/API integration, reusable components, and straightforward deployment to modern frontend hosting platforms.
@@ -23,19 +28,30 @@ This stack was chosen because it supports SEO metadata, routeable product pages,
 ## Getting Started
 
 ```bash
-npm install
-npm run dev
+npm ci
+npm --prefix backend ci
+npm run dev:all
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. This starts both the Next.js frontend and the local Indeed automation backend.
+
+For frontend-only work:
+
+```bash
+npm run dev
+```
 
 Useful checks:
 
 ```bash
+npm test
 npm run typecheck
 npm run lint
 npm run build
+npm --prefix backend run typecheck
 ```
+
+The same checks run in GitHub Actions through `.github/workflows/ci.yml`.
 
 ## Routes
 
@@ -68,6 +84,9 @@ Example detail routes:
 - Company name links to LinkedIn when a LinkedIn URL exists
 - Job title links to an Indeed search URL for the role
 - Resilient company logo rendering with external logo URL support and fallback placeholder
+- Live Indeed application records merge into the main job feed when the local backend is running
+- Collected Indeed jobs can be opened, tracked, and run through the guarded apply workflow
+- Chrome extension companion can send visible jobs from a logged-in Indeed tab to the local backend
 - Premium/non-premium job-fit panel on the job detail page
 - Fixed dashboard rails: sidebar and right panel stay visible while the center content scrolls
 - Clickable sidebar navigation with routed page views for mock interview, resume, profile, settings, subscription, and credits
@@ -98,22 +117,48 @@ The brief requested an H5/mobile adaptation without a supplied mobile design. Th
 - Job cards stack and preserve primary actions
 - Job detail content remains readable in a single-column layout
 
-## Backend-Ready Structure
+## Frontend Data Boundary
 
-The project is currently using mock data, but it is organized for backend integration:
+The dashboard keeps the UI contract behind typed service and hook boundaries:
 
 - `types/job.ts` defines the job data model
 - `services/jobs.ts` contains the current job service boundary
+- `services/indeedBackend.ts` maps backend application records into feed-ready jobs
 - `app/api/jobs/route.ts` exposes a local API endpoint
 - Frontend clients already fetch Liked and Applied job data on load
 
-Future backend integrations can replace the mock service with database/API calls without changing the main UI contract.
+Static design-sample jobs remain available for GitHub Pages. When the local backend is running, collected Indeed jobs are merged into the feed as live cards with real Indeed URLs, application status, and optional company logos.
 
 ## Indeed Auto-Apply Backend
 
-The backend engineering test is scoped in [BACKEND_SRS.md](./BACKEND_SRS.md), with the first implementation slice under [backend/](./backend/).
+The backend engineering test is scoped in [BACKEND_SRS.md](./BACKEND_SRS.md), with implementation under [backend/](./backend/).
 
-The backend module is CLI-first and handles private candidate configuration, encrypted Indeed session storage, manual verification checkpoints, and application status tracking without committing personal data or session artifacts.
+The backend module has both CLI and HTTP API entrypoints. It handles private candidate configuration, encrypted Indeed session storage, manual verification checkpoints, job collection, application status tracking, and a guarded application runner without committing personal data or session artifacts.
+
+The application runner has two modes:
+
+- Review mode: fill known fields, upload the configured resume when possible, and pause before final submission.
+- Submit mode: enabled only with `allowSubmit`; clicks final submit buttons for suitable queued jobs when no manual checkpoint or unknown required field is detected.
+
+A final button click is not considered success by itself. Both executors require an unambiguous Indeed confirmation before recording `submitted`.
+
+## Indeed Chrome Companion
+
+The extension in [extension/](./extension/) is the live product executor when Indeed trusts the user's normal Chrome tab but rejects backend-restored browser sessions.
+
+Load it locally:
+
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Choose **Load unpacked**.
+4. Select this repo's `extension` folder.
+5. Start the local backend with `npm run dev:all`.
+6. Open a logged-in Indeed search page.
+7. Click **Send visible jobs** in the JobNova toolbar or extension popup.
+
+The extension does not read cookies or bypass verification. Its service worker advertises readiness and claims leased commands, while the JobNova page bridge shortens polling latency whenever the app is open. It extracts supported jobs, sends them to the backend, recognizes Indeed-hosted Apply controls, fills known profile fields, advances safe steps, and submits only when the JobNova Apply action explicitly enables submission. Ordinary employer questions are relayed into a JobNova modal and resumed in the background. The Indeed tab comes forward only for login, CAPTCHA, email/SMS verification, ambiguous resume selection, or a screen that cannot be represented safely in JobNova.
+
+Commands and leases are persisted in `backend/data/companion-commands.json` by default. The backend rejects new dispatches when no current extension heartbeat is present and accepts `submitted` only after an unambiguous Indeed confirmation.
 
 ## Logo Enrichment Plan
 
@@ -148,6 +193,10 @@ localStorage.setItem("jobnova:has-premium", "true")
 
 Refresh the job detail page afterward.
 
+## Assignment Coverage
+
+[SUBMISSION_CHECKLIST.md](./SUBMISSION_CHECKLIST.md) maps every take-home requirement to its implementation and verification evidence. It also separates automated proof from the three candidate-owned completion steps: confirming the Indeed account, approving one relevant real submission, and recording the requested walkthrough video.
+
 ## Notes
 
-The Figma file was used through provided screenshots and extracted SVG snippets. If direct Figma Dev Mode or connector access becomes available, the next step would be a final side-by-side visual QA pass against the original frame dimensions, spacing, typography, colors, shadows, and exported assets.
+The Figma file was implemented through the supplied screenshots, dimensions, and extracted SVG assets. The shared desktop shell and mobile adaptations were checked for viewport overflow, fixed-rail behavior, readable wrapping, and route consistency.

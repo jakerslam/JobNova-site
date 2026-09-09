@@ -3,6 +3,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { ApplicationStore } from "./storage/ApplicationStore.js";
 import { loadCandidateProfile, loadJobPreferences } from "./config/loadConfig.js";
+import { checkChromeDebugStatus, launchMainChromeWithDebugging } from "./indeed/ChromeDebug.js";
 import { IndeedApplicationRunner } from "./indeed/IndeedApplicationRunner.js";
 import { importIndeedSessionFromChrome } from "./indeed/IndeedBrowserImport.js";
 import { IndeedSessionManager } from "./indeed/IndeedSessionManager.js";
@@ -18,6 +19,10 @@ function getArg(name: string) {
 
 function getSessionName() {
   return getArg("session-name") ?? process.env.INDEED_SESSION_NAME ?? "default";
+}
+
+function getAllowSubmit() {
+  return args.includes("--allow-submit");
 }
 
 function printJson(value: unknown) {
@@ -62,6 +67,11 @@ async function checkSession() {
   process.exitCode = 1;
 }
 
+async function diagnoseSession() {
+  const manager = new IndeedSessionManager(undefined, getSessionName());
+  printJson(await manager.diagnoseSession());
+}
+
 async function importSession() {
   const cdpUrl = getArg("cdp-url") ?? process.env.CHROME_CDP_URL;
   const result = await importIndeedSessionFromChrome(cdpUrl, getSessionName());
@@ -69,6 +79,14 @@ async function importSession() {
     ...result,
     message: "Encrypted Indeed-only session state imported from connected Chrome.",
   });
+}
+
+async function chromeStatus() {
+  printJson(await checkChromeDebugStatus());
+}
+
+async function launchChrome() {
+  printJson(await launchMainChromeWithDebugging());
 }
 
 async function status() {
@@ -112,14 +130,14 @@ async function apply() {
   const preferences = await loadJobPreferences();
 
   if (args.includes("--run")) {
-    const results = await runner.applyPending(preferences.maxApplicationsPerRun);
+    const results = await runner.applyPending(preferences.maxApplicationsPerRun, { allowSubmit: getAllowSubmit() });
     printJson({ processed: results.length, results });
     return;
   }
 
   printJson({
     plannedFields: runner.summarizePlannedFields(),
-    note: "Run with --run after login and search --collect to process pending jobs with manual safeguards.",
+    note: "Run with --run after login and search --collect to process pending jobs with manual safeguards. Add --allow-submit only when you intentionally want final submit buttons clicked.",
   });
 }
 
@@ -139,7 +157,7 @@ async function resume() {
 
   const profile = await loadCandidateProfile();
   const runner = new IndeedApplicationRunner(profile, undefined, new IndeedSessionManager(undefined, getSessionName()));
-  const result = await runner.applyToRecord(record);
+  const result = await runner.applyToRecord(record, { allowSubmit: getAllowSubmit() });
 
   printJson({ result });
 }
@@ -174,8 +192,17 @@ async function main() {
     case "check-session":
       await checkSession();
       break;
+    case "diagnose-session":
+      await diagnoseSession();
+      break;
     case "import-session":
       await importSession();
+      break;
+    case "chrome-status":
+      await chromeStatus();
+      break;
+    case "launch-chrome":
+      await launchChrome();
       break;
     case "status":
       await status();
@@ -194,7 +221,7 @@ async function main() {
       break;
     default:
       console.log(
-        "Usage: tsx src/cli.ts <login|check-session|import-session|status|search|apply|resume|queue-url> [--session-name=default]",
+        "Usage: tsx src/cli.ts <login|check-session|diagnose-session|import-session|chrome-status|launch-chrome|status|search|apply|resume|queue-url> [--session-name=default] [--allow-submit]",
       );
       process.exitCode = 1;
   }

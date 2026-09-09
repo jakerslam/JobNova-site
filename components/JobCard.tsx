@@ -3,8 +3,10 @@
 import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { LikeIcon, LinkGlyphIcon, LocationDotIcon, SignalIcon } from "@/components/JobCardIcons";
 import { MatchRing } from "@/components/MatchRing";
+import { getIndeedApplicationAction } from "@/services/indeedBackend";
 import type { Job } from "@/types/job";
 
 type JobCardProps = {
@@ -12,16 +14,29 @@ type JobCardProps = {
   isSelected: boolean;
   isSaved: boolean;
   onToggleSaved: (jobId: string) => void;
+  onApplyJob?: (job: Job) => Promise<void> | void;
+  onRefreshStatus?: () => Promise<void> | void;
+  isApplying?: boolean;
 };
 
-export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProps) {
-  const jobHref = `/jobs/${job.status.toLowerCase()}/${job.id}`;
+export function JobCard({
+  job,
+  isSelected,
+  isSaved,
+  onToggleSaved,
+  onApplyJob,
+  onRefreshStatus,
+  isApplying = false,
+}: JobCardProps) {
+  const jobHref = job.isLiveIndeedJob
+    ? `/jobs/${job.status.toLowerCase()}/live?applicationId=${encodeURIComponent(job.applicationId ?? job.id)}`
+    : `/jobs/${job.status.toLowerCase()}/${job.id}`;
   const router = useRouter();
   const [copied, setCopied] = useState(false);
 
   async function copyJobLink(event: React.MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
-    const url = `${window.location.origin}${jobHref}`;
+    const url = job.isLiveIndeedJob ? job.indeedUrl : `${window.location.origin}${jobHref}`;
 
     try {
       await window.navigator.clipboard.writeText(url);
@@ -37,15 +52,35 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
     onToggleSaved(job.id);
   }
 
+  function openJob() {
+    router.push(jobHref);
+  }
+
+  function handleApply(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+
+    if (isApplying || job.applicationStatus === "submitted") return;
+
+    if (job.isLiveIndeedJob && onApplyJob && job.applicationId) {
+      void onApplyJob(job);
+      return;
+    }
+
+    router.push(jobHref);
+  }
+
+  const applyState = getApplyState(job, isApplying);
+  const verificationUrl = job.manualQuestion ? undefined : getUsefulManualActionUrl(job);
+
   return (
     <article
       role="link"
       tabIndex={0}
-      onClick={() => router.push(jobHref)}
+      onClick={openJob}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          router.push(jobHref);
+          openJob();
         }
       }}
       className={`min-h-[252px] cursor-pointer rounded-[13px] bg-white px-4 py-0 shadow-soft transition-shadow hover:shadow-lg sm:px-4 ${
@@ -102,19 +137,30 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
         </div>
 
         <div className="col-span-2 min-w-0 text-[13px] leading-5 sm:col-span-1 sm:col-start-2 sm:mt-[-16px]">
-          {job.companyLinkedInUrl ? (
-            <a
-              href={job.companyLinkedInUrl}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(event) => event.stopPropagation()}
-              className="inline-flex w-fit items-center font-normal text-zinc-400 transition-colors hover:text-violet hover:underline"
-            >
-              {job.company}
-            </a>
-          ) : (
-            <span className="block font-normal text-zinc-400">{job.company}</span>
-          )}
+          <div className="flex min-w-0 items-center gap-1.5">
+            {job.companyLogoUrl ? (
+              <CompanyLogo
+                company={job.company}
+                logoUrl={job.companyLogoUrl}
+                className="h-[18px] w-[18px]"
+                imageClassName="h-[14px] w-[14px]"
+                fallbackClassName="h-3 w-3"
+              />
+            ) : null}
+            {job.companyLinkedInUrl ? (
+              <a
+                href={job.companyLinkedInUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(event) => event.stopPropagation()}
+                className="inline-flex min-w-0 max-w-full items-center truncate font-normal text-zinc-400 transition-colors hover:text-violet hover:underline"
+              >
+                {job.company}
+              </a>
+            ) : (
+              <span className="block min-w-0 truncate font-normal text-zinc-400">{job.company}</span>
+            )}
+          </div>
           <p className="mt-[2px] flex min-h-5 flex-wrap items-center gap-x-[7px] gap-y-1 text-[13px] font-normal leading-5 text-ink">
             <LocationDotIcon className="h-4 w-[11px] shrink-0" />
             <span className="leading-5">{job.location}</span>
@@ -141,13 +187,11 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
         <div className="grid grid-cols-[minmax(96px,1fr)_minmax(150px,1.3fr)] gap-2 sm:flex sm:shrink-0">
           <button
             type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              router.push(jobHref);
-            }}
-            className="grid h-9 place-items-center rounded-full border border-zinc-200 px-6 text-[13px] font-medium"
+            onClick={handleApply}
+            disabled={applyState.disabled}
+            className={`grid h-9 place-items-center rounded-full border px-6 text-[13px] font-medium transition-shadow hover:shadow-md disabled:cursor-default disabled:hover:shadow-none ${applyState.className}`}
           >
-            Apply
+            {applyState.label}
           </button>
           <button
             type="button"
@@ -158,6 +202,162 @@ export function JobCard({ job, isSelected, isSaved, onToggleSaved }: JobCardProp
           </button>
         </div>
       </div>
+      {job.isLiveIndeedJob && job.applicationStatus && job.applicationStatus !== "pending" ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 py-2 text-[12px] font-medium text-muted">
+          <span>
+            <span className="text-ink">Application status:</span> {formatApplicationStatus(job)}
+          </span>
+          {verificationUrl ? (
+            <a
+              href={verificationUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              className="inline-flex h-7 items-center gap-1 rounded-full bg-ink px-3 text-[11px] font-medium text-white transition-shadow hover:shadow-md"
+            >
+              Continue in Indeed
+              <LinkGlyphIcon className="h-3.5 w-3.5 [&_path]:stroke-white" />
+            </a>
+          ) : null}
+          {job.applicationStatus === "manual_action_required" && onRefreshStatus ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                void onRefreshStatus();
+              }}
+              className="inline-flex h-7 items-center rounded-full border border-zinc-200 bg-white px-3 text-[11px] font-medium text-ink transition-shadow hover:shadow-md"
+            >
+              Refresh status
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
+}
+
+function getApplyState(job: Job, isApplying: boolean) {
+  const action = getIndeedApplicationAction(job, isApplying);
+
+  if (action === "queued") {
+    return {
+      label: "Queued",
+      disabled: true,
+      className: "border-violet bg-violet/10 text-violet",
+    };
+  }
+
+  if (action === "opening") {
+    return {
+      label: "Opening",
+      disabled: true,
+      className: "border-violet bg-violet/10 text-violet",
+    };
+  }
+
+  if (action === "applying") {
+    return {
+      label: "Applying",
+      disabled: true,
+      className: "border-violet bg-violet/10 text-violet",
+    };
+  }
+
+  if (action === "applied") {
+    return {
+      label: "Applied",
+      disabled: true,
+      className: "border-acid bg-acid text-ink",
+    };
+  }
+
+  if (action === "finish") {
+    return {
+      label: "Finish",
+      disabled: false,
+      className: "border-violet bg-violet text-white",
+    };
+  }
+
+  if (action === "unsupported") {
+    return {
+      label: "Unsupported",
+      disabled: true,
+      className: "border-zinc-200 bg-zinc-100 text-muted",
+    };
+  }
+
+  if (action === "retry") {
+    return {
+      label: "Retry",
+      disabled: false,
+      className: "border-zinc-200 bg-white text-ink",
+    };
+  }
+
+  return {
+    label: "Apply",
+    disabled: false,
+    className: "border-zinc-200 bg-white text-ink",
+  };
+}
+
+function formatApplicationStatus(job: Job) {
+  if (job.applicationStatus === "in_progress") {
+    if (job.applicationLastStep === "queued_for_companion") return "Queued for automatic application";
+    if (job.applicationLastStep === "leased_by_companion") return "Opening authenticated Indeed session";
+    if (job.applicationLastStep?.startsWith("profile_fields_filled")) return "Profile completed; continuing application";
+    return "Applying automatically in Indeed";
+  }
+
+  if (job.applicationStatus === "manual_action_required") {
+    if (job.manualActionReason === "captcha" && job.applicationLastStep === "manual_checkpoint_before_apply") {
+      return "Waiting for trusted Chrome session";
+    }
+
+    return `Waiting for ${formatManualReason(job.manualActionReason)}`;
+  }
+
+  if (job.applicationStatus === "submitted") return "Application finished";
+  if (job.applicationStatus === "failed") return job.applicationFailureReason ?? "Failed";
+  if (job.applicationStatus === "skipped") {
+    if (job.applicationLastStep === "apply_button_not_found") return "Application page was not recognized; retry available";
+    if (job.applicationLastStep === "external_application") return "Unsupported: external employer application";
+    if (job.applicationLastStep === "invalid_job_metadata") return "Unsupported: invalid job posting";
+    return job.applicationFailureReason ?? "Skipped";
+  }
+
+  return job.applicationStatus?.replaceAll("_", " ") ?? "pending";
+}
+
+function formatManualReason(reason?: string) {
+  if (reason === "captcha") return "CAPTCHA";
+  if (reason === "sms") return "SMS code";
+  if (reason === "email") return "email verification";
+  if (reason === "login") return "Indeed login";
+  if (reason === "unknown_field") return "profile answer";
+  if (reason === "review_required") return "review";
+  return "manual step";
+}
+
+function getUsefulManualActionUrl(job: Job) {
+  if (!job.manualActionUrl) return undefined;
+
+  try {
+    const manualUrl = new URL(job.manualActionUrl);
+    const jobUrl = new URL(job.indeedUrl);
+    const sameJobPosting =
+      manualUrl.hostname === jobUrl.hostname &&
+      manualUrl.pathname === jobUrl.pathname &&
+      manualUrl.searchParams.get("jk") === jobUrl.searchParams.get("jk");
+
+    if (sameJobPosting) {
+      return undefined;
+    }
+  } catch {
+    return job.manualActionUrl;
+  }
+
+  return job.manualActionUrl;
 }

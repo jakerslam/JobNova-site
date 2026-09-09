@@ -13,10 +13,15 @@ type JobDetailPageProps = {
 export async function generateStaticParams() {
   const jobs = await getJobs();
 
-  return jobs.map((job) => ({
-    status: job.status.toLowerCase(),
-    jobId: job.id,
-  }));
+  return [
+    ...jobs.map((job) => ({
+      status: job.status.toLowerCase(),
+      jobId: job.id,
+    })),
+    { status: "matched", jobId: "live" },
+    { status: "liked", jobId: "live" },
+    { status: "applied", jobId: "live" },
+  ];
 }
 
 export async function generateMetadata({ params }: JobDetailPageProps): Promise<Metadata> {
@@ -34,7 +39,15 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
   const status = slugToStatus(statusSlug);
   const [jobs, job] = await Promise.all([getJobs(), getJobById(jobId)]);
 
-  if (!status || !job) {
+  if (!status) {
+    notFound();
+  }
+
+  if (jobId === "live") {
+    return <JobDetailClient jobs={jobs} job={{ ...jobs[0], id: "live", status }} liveStatus={status} />;
+  }
+
+  if (!job) {
     notFound();
   }
 

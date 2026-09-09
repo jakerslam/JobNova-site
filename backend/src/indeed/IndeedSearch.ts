@@ -39,6 +39,11 @@ function absoluteIndeedUrl(href: string) {
   return new URL(href, "https://www.indeed.com").toString();
 }
 
+function cleanImageUrl(src?: string | null) {
+  if (!src || src.startsWith("data:")) return undefined;
+  return src;
+}
+
 export function scoreJob(job: Omit<JobSearchResult, "relevanceScore">, preferences: JobPreferences) {
   const haystack = normalize(`${job.title} ${job.company} ${job.location ?? ""} ${job.snippet ?? ""}`);
   const excluded = [...preferences.excludedCompanies, ...preferences.excludedKeywords].some((keyword) =>
@@ -73,6 +78,12 @@ export async function collectIndeedJobs(page: Page, preferences: JobPreferences)
 
       return anchors.slice(0, 8).map((anchor) => {
         const card = anchor.closest("[class*='job'], [data-testid*='job'], li, td, div");
+        const companyAnchor = card?.querySelector<HTMLAnchorElement>(
+          "a[href*='/cmp/'], a[href*='indeed.com/cmp/'], a[data-testid*='company']",
+        );
+        const logoImage = card?.querySelector<HTMLImageElement>(
+          "img[alt*='logo' i], img[src*='logo' i], img[src*='company' i], img",
+        );
         const title = anchor.textContent?.trim() || anchor.getAttribute("aria-label") || "Untitled role";
         const text = card?.textContent?.replace(/\s+/g, " ").trim() ?? title;
         const lines = text.split(/(?=[A-Z][a-z]+(?:\s|$))/).map((line) => line.trim()).filter(Boolean);
@@ -81,7 +92,13 @@ export async function collectIndeedJobs(page: Page, preferences: JobPreferences)
           href: anchor.href || anchor.getAttribute("href") || "",
           title,
           company: lines.find((line) => line !== title && line.length < 80) ?? "Unknown company",
-          location: text.match(/(?:Remote|Salt Lake City[^,$]*|[A-Z][a-z]+,\s[A-Z]{2})/)?.[0],
+          companyProfileHref: companyAnchor?.href || companyAnchor?.getAttribute("href") || undefined,
+          companyLogoSrc:
+            logoImage?.currentSrc ||
+            logoImage?.src ||
+            logoImage?.getAttribute("data-src") ||
+            logoImage?.getAttribute("src"),
+          location: text.match(/(?:Remote|Hybrid|On-site|[A-Z][A-Za-z .'-]+,\s[A-Z]{2})/)?.[0],
           snippet: text.slice(0, 500),
         };
       });
@@ -94,6 +111,8 @@ export async function collectIndeedJobs(page: Page, preferences: JobPreferences)
         jobUrl: absoluteIndeedUrl(result.href),
         title: result.title,
         company: result.company,
+        companyProfileUrl: result.companyProfileHref ? absoluteIndeedUrl(result.companyProfileHref) : undefined,
+        companyLogoUrl: cleanImageUrl(result.companyLogoSrc),
         location: result.location,
         snippet: result.snippet,
       };

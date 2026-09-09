@@ -45,16 +45,36 @@ export type JobPreferences = {
   maxApplicationsPerRun: number;
 };
 
+export type ManualApplicationQuestion = {
+  key: string;
+  label: string;
+  type: "text" | "single_choice" | "boolean" | "select";
+  options?: string[];
+  required: boolean;
+};
+
 export type ApplicationRecord = {
   id: string;
   jobUrl: string;
   title: string;
   company: string;
+  companyProfileUrl?: string;
+  companyLogoUrl?: string;
   location?: string;
+  country?: string;
+  jobType?: string;
+  workplace?: "On-site" | "Remote" | "Hybrid";
+  experience?: string;
+  salary?: string;
+  seniority?: string;
+  supportsIndeedApply?: boolean;
   relevanceScore?: number;
   status: ApplicationStatus;
   lastStep?: string;
   manualActionReason?: ManualActionReason;
+  manualActionUrl?: string;
+  manualQuestion?: ManualApplicationQuestion;
+  applicationAnswers?: Record<string, string>;
   failureReason?: string;
   submittedAt?: string;
   createdAt: string;
@@ -69,7 +89,16 @@ export type JobSearchResult = {
   jobUrl: string;
   title: string;
   company: string;
+  companyProfileUrl?: string;
+  companyLogoUrl?: string;
   location?: string;
+  country?: string;
+  jobType?: string;
+  workplace?: "On-site" | "Remote" | "Hybrid";
+  experience?: string;
+  salary?: string;
+  seniority?: string;
+  supportsIndeedApply?: boolean;
   snippet?: string;
   relevanceScore: number;
 };

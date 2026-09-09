@@ -18,27 +18,57 @@ async function assertReadable(filePath: string, label: string) {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
 export async function loadCandidateProfile(): Promise<CandidateProfile> {
-  const profile = await readJson<CandidateProfile>("candidate-profile.json");
+  const candidate = await readJson<unknown>("candidate-profile.json");
+  if (!isRecord(candidate)) throw new Error("Candidate profile must be a JSON object.");
+
   const requiredFields: Array<keyof CandidateProfile> = ["firstName", "lastName", "email", "phone", "location", "resumePath"];
 
   for (const field of requiredFields) {
-    if (!profile[field]) {
+    if (typeof candidate[field] !== "string" || !candidate[field].trim()) {
       throw new Error(`Candidate profile is missing required field: ${field}`);
     }
   }
 
+  if (!Array.isArray(candidate.workExperience) || candidate.workExperience.length === 0) {
+    throw new Error("Candidate profile must include at least one work experience entry.");
+  }
+  if (!Array.isArray(candidate.education) || candidate.education.length === 0) {
+    throw new Error("Candidate profile must include at least one education entry.");
+  }
+  if (!isRecord(candidate.links) || !isRecord(candidate.answers)) {
+    throw new Error("Candidate profile must include links and answers objects.");
+  }
+
+  const profile = candidate as CandidateProfile;
   await assertReadable(profile.resumePath, "Resume file");
   return profile;
 }
 
 export async function loadJobPreferences(): Promise<JobPreferences> {
-  const preferences = await readJson<JobPreferences>("job-preferences.json");
+  const candidate = await readJson<unknown>("job-preferences.json");
+  if (!isRecord(candidate)) throw new Error("Job preferences must be a JSON object.");
 
-  if (!preferences.titles.length) throw new Error("Job preferences must include at least one title.");
-  if (!preferences.locations.length) throw new Error("Job preferences must include at least one location.");
+  const preferences = candidate as JobPreferences;
+
+  if (!Array.isArray(preferences.titles) || !preferences.titles.length) {
+    throw new Error("Job preferences must include at least one title.");
+  }
+  if (!Array.isArray(preferences.locations) || !preferences.locations.length) {
+    throw new Error("Job preferences must include at least one location.");
+  }
+  if (!Array.isArray(preferences.remoteOptions)) {
+    throw new Error("Job preferences must include remoteOptions.");
+  }
   if (!preferences.maxApplicationsPerRun || preferences.maxApplicationsPerRun < 1) {
     throw new Error("Job preferences must set maxApplicationsPerRun to at least 1.");
+  }
+  if (preferences.maxApplicationsPerRun > 5) {
+    throw new Error("Job preferences must keep maxApplicationsPerRun at 5 or fewer for this low-volume prototype.");
   }
 
   return preferences;
