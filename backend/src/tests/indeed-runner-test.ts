@@ -15,10 +15,14 @@ const profile = {
   answers: { authorized_to_work_us: "Yes" },
 };
 
-async function createPage(html: string, url = "https://www.indeed.com/viewjob?jk=runner-test") {
+async function createPage(
+  html: string,
+  url = "https://www.indeed.com/viewjob?jk=runner-test",
+  runnerTimeoutMs = 500,
+) {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
-  await page.addInitScript({ content: buildChromeStub(profile) });
+  await page.addInitScript({ content: buildChromeStub(profile, runnerTimeoutMs) });
   await page.route(url, async (route) => {
     await route.fulfill({ contentType: "text/html", body: html });
   });
@@ -250,6 +254,33 @@ async function testDelayedIndeedApplyControl() {
     await runCommand(page, { allowSubmit: true });
     const report = await waitForReport(page, "submitted");
     assertEqual(report?.lastStep, "submission_confirmed", "delayed Indeed apply control reaches confirmed submission");
+  } finally {
+    await browser.close();
+  }
+}
+
+async function testDelayedApplicationHandoff() {
+  const { browser, page } = await createPage(
+    `<h1>Software Engineer</h1>
+    <button id="start">Apply with Indeed</button>
+    <script>
+      document.querySelector('#start').addEventListener('click', () => {
+        setTimeout(() => {
+          document.body.innerHTML = '<form><label>Email <input type="email" aria-label="Email" required></label><button type="submit" id="submit">Submit application</button></form>';
+          document.querySelector('#submit').addEventListener('click', (event) => {
+            event.preventDefault();
+            document.body.innerHTML = '<h1>Application submitted</h1>';
+          });
+        }, 700);
+      });
+    </script>`,
+    "https://www.indeed.com/viewjob?jk=delayed-handoff",
+    1_200,
+  );
+  try {
+    await runCommand(page, { allowSubmit: true, jobUrl: "https://www.indeed.com/viewjob?jk=delayed-handoff" });
+    const report = await waitForReport(page, "submitted");
+    assertEqual(report?.lastStep, "submission_confirmed", "delayed application handoff stays in the first command");
   } finally {
     await browser.close();
   }
@@ -553,10 +584,10 @@ async function testExternalUrlIsSkipped() {
   }
 }
 
-function buildChromeStub(candidateProfile: typeof profile) {
+function buildChromeStub(candidateProfile: typeof profile, runnerTimeoutMs: number) {
   return `
     window.__jobnovaReports = [];
-    window.__JOBNOVA_TEST_TIMEOUT_MS__ = 500;
+    window.__JOBNOVA_TEST_TIMEOUT_MS__ = ${runnerTimeoutMs};
     window.__jobnovaListeners = [];
     window.__jobnovaProfile = ${JSON.stringify(candidateProfile)};
     window.chrome = {
@@ -640,6 +671,7 @@ async function main() {
   await testApplyWithIndeedEndToEnd();
   await testAlternateIndeedApplyControl();
   await testDelayedIndeedApplyControl();
+  await testDelayedApplicationHandoff();
   await testEmailVerificationPause();
   await testSmsVerificationPause();
   await testRequiredResumePause();

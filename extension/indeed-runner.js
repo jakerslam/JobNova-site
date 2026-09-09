@@ -3,6 +3,7 @@
   const completedCommands = new Set();
   const maxSteps = 16;
   const transitionTimeoutMs = Number(globalThis.__JOBNOVA_TEST_TIMEOUT_MS__) || 20_000;
+  const applicationHandoffTimeoutMs = Number(globalThis.__JOBNOVA_TEST_TIMEOUT_MS__) || 60_000;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || message.type !== "JOBNOVA_RUN_INDEED_COMMAND") return false;
@@ -408,7 +409,7 @@
     return null;
   }
 
-  async function waitForApplicationHandoff(command, timeoutMs = transitionTimeoutMs) {
+  async function waitForApplicationHandoff(command, timeoutMs = applicationHandoffTimeoutMs) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (isApplicationPage() || detectCheckpoint()) return "same_tab";
