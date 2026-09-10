@@ -166,26 +166,31 @@ async function startIndeedApplication(state, tabId) {
   }
 
   let applicationNavigationStarted = false;
+  let clickTelemetry;
   if (target.href && isIndeedApplicationContinuationUrl(target.href)) {
     await chrome.tabs.update(tabId, { url: target.href });
     applicationNavigationStarted = true;
   } else {
-    await invokeIndeedApplyHandler(tabId);
+    // Indeed ignores synthetic HTMLElement.click() calls on some listings. Use
+    // Chrome's input protocol directly and only continue after a real handoff.
+    clickTelemetry = await dispatchDebuggerClick(tabId, target);
     applicationNavigationStarted = await waitForApplicationNavigation(tabId, state.command.jobUrl);
-
-    // The handler is the most direct representation of the user action. Keep
-    // a trusted pointer fallback for widgets that reject programmatic clicks.
-    if (!applicationNavigationStarted) {
-      const retryTarget = await readIndeedApplyTarget(tabId);
-      if (retryTarget && !retryTarget.external) {
-        await dispatchDebuggerClick(tabId, retryTarget.x, retryTarget.y);
-        applicationNavigationStarted = await waitForApplicationNavigation(tabId, state.command.jobUrl);
-      }
-    }
   }
+
+  if (!applicationNavigationStarted) {
+    await reportCompanionResult(state.command, {
+      status: "manual_action_required",
+      lastStep: "apply_click_not_accepted",
+      manualActionReason: "review_required",
+      manualActionUrl: state.command.jobUrl,
+      failureReason: formatApplyClickFailure(clickTelemetry),
+    });
+    return true;
+  }
+
   const payload = await reportCompanionResult(state.command, {
     status: "in_progress",
-    lastStep: applicationNavigationStarted ? "apply_navigation_started" : "apply_clicked",
+    lastStep: "apply_navigation_started",
   });
   if (payload.command) {
     state.command = payload.command;
@@ -208,24 +213,6 @@ async function startIndeedApplication(state, tabId) {
     ));
   }, 1_000);
   return true;
-}
-
-async function invokeIndeedApplyHandler(tabId) {
-  const [result] = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: "MAIN",
-    func: () => {
-      const label = (element) => (element.innerText || element.value || element.getAttribute("aria-label") || "")
-        .replace(/\s+/g, " ")
-        .trim();
-      const button = Array.from(document.querySelectorAll("#indeedApplyButton, button, a, input[type='submit'], [role='button']"))
-        .find((element) => /^(?:apply(?:\s+(?:now|with indeed|on indeed|for this job))?|easily apply|start application|start your application)$/i.test(label(element)));
-      if (!button || button.disabled || button.getAttribute("aria-disabled") === "true") return false;
-      button.click();
-      return true;
-    },
-  });
-  return Boolean(result?.result);
 }
 
 async function waitForIndeedApplyTarget(tabId, timeoutMs = 15_000) {
@@ -276,8 +263,13 @@ async function readIndeedApplyTarget(tabId) {
         const rawHref = control.closest("a")?.href || control.getAttribute("href") || control.getAttribute("data-indeed-apply-link") || control.getAttribute("data-apply-url") || "";
         const href = rawHref ? new URL(rawHref, location.href).href : "";
         return {
+          id: control.id || "",
+          testId: control.getAttribute("data-testid") || "",
+          label: value,
           x: rect.left + (rect.width / 2),
           y: rect.top + (rect.height / 2),
+          width: rect.width,
+          height: rect.height,
           href,
           external: Boolean(href && !/^https:\\/\\/(?:[^/]+\\.)?indeed\\.com(?:\\/|$)/i.test(href)),
         };
@@ -289,13 +281,19 @@ async function readIndeedApplyTarget(tabId) {
   }
 }
 
-async function dispatchDebuggerClick(tabId, x, y) {
-  const target = { tabId };
+async function dispatchDebuggerClick(tabId, control) {
+  const x = Number(control?.x);
+  const y = Number(control?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error("The Indeed Apply control did not provide usable click coordinates.");
+  }
+
+  const debuggerTarget = { tabId };
   let attached = false;
   try {
-    await chrome.debugger.attach(target, "1.3");
+    await chrome.debugger.attach(debuggerTarget, "1.3");
     attached = true;
-    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
+    await chrome.debugger.sendCommand(debuggerTarget, "Input.dispatchMouseEvent", {
       type: "mouseMoved",
       x,
       y,
@@ -303,7 +301,7 @@ async function dispatchDebuggerClick(tabId, x, y) {
       buttons: 0,
       pointerType: "mouse",
     });
-    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
+    await chrome.debugger.sendCommand(debuggerTarget, "Input.dispatchMouseEvent", {
       type: "mousePressed",
       x,
       y,
@@ -312,7 +310,7 @@ async function dispatchDebuggerClick(tabId, x, y) {
       clickCount: 1,
       pointerType: "mouse",
     });
-    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
+    await chrome.debugger.sendCommand(debuggerTarget, "Input.dispatchMouseEvent", {
       type: "mouseReleased",
       x,
       y,
@@ -321,9 +319,39 @@ async function dispatchDebuggerClick(tabId, x, y) {
       clickCount: 1,
       pointerType: "mouse",
     });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const inspection = await chrome.debugger.sendCommand(debuggerTarget, "Runtime.evaluate", {
+      returnByValue: true,
+      expression: `(() => {
+        const element = document.elementFromPoint(${JSON.stringify(x)}, ${JSON.stringify(y)});
+        if (!element) return null;
+        const control = element.closest("button, a, input[type='submit'], [role='button']") || element;
+        return {
+          id: control.id || "",
+          testId: control.getAttribute("data-testid") || "",
+          label: (control.innerText || control.value || control.getAttribute("aria-label") || "").replace(/\\s+/g, " ").trim(),
+        };
+      })()`,
+    });
+    return {
+      dispatched: true,
+      expected: { id: control?.id || "", testId: control?.testId || "", label: control?.label || "" },
+      point: { x, y },
+      elementAtPoint: inspection?.result?.value || null,
+    };
   } finally {
-    if (attached) await chrome.debugger.detach(target).catch(() => undefined);
+    if (attached) await chrome.debugger.detach(debuggerTarget).catch(() => undefined);
   }
+}
+
+function formatApplyClickFailure(telemetry) {
+  if (!telemetry?.dispatched) {
+    return "JobNova could not dispatch a browser-level click to Indeed's Apply control.";
+  }
+
+  const expected = telemetry.expected?.label || "Apply";
+  const actual = telemetry.elementAtPoint?.label || telemetry.elementAtPoint?.id || "no interactive element";
+  return `Indeed did not transition after a browser-level click on ${expected}. The click point resolved to ${actual}.`;
 }
 
 async function initializeCompanionAgent() {
@@ -425,7 +453,7 @@ async function dispatchTrustedClick(message, sender) {
     throw new Error("The requested Indeed click has invalid coordinates.");
   }
 
-  await dispatchDebuggerClick(tabId, x, y);
+  await dispatchDebuggerClick(tabId, { x, y });
   return { ok: true, clicked: true };
 }
 
