@@ -297,6 +297,22 @@ function testStaleJobDetailResumeUrlFallsBackToPosting() {
   }
 }
 
+function testBareSmartApplyReviewFallsBackToPosting() {
+  const fixture = createFixture();
+  try {
+    fixture.applications.update(fixture.application.id, {
+      status: "manual_action_required",
+      manualActionReason: "review_required",
+      manualActionUrl: "https://smartapply.indeed.com/beta/indeedapply/form/review-module",
+    });
+
+    const dispatched = fixture.service.dispatch(fixture.application.id, false);
+    assertEqual(dispatched.command.jobUrl, fixture.application.jobUrl, "bare review URL falls back to the original posting");
+  } finally {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  }
+}
+
 function testInAppQuestionAnswerResumesTheSameApplication() {
   const fixture = createFixture();
   try {
@@ -399,5 +415,6 @@ testApplicationStatusPropagation();
 testProfileProjectionAndManualResumeUrl();
 testUnsafeManualResumeUrlFallsBackToPosting();
 testStaleJobDetailResumeUrlFallsBackToPosting();
+testBareSmartApplyReviewFallsBackToPosting();
 testInAppQuestionAnswerResumesTheSameApplication();
 console.log("Companion command protocol test passed: idempotent dispatch, exclusive claim, lease recovery, stale-token rejection, strict report validation, profile projection, and manual resume URL safety.");

@@ -419,7 +419,13 @@ function isIndeedContinuationUrl(value: string) {
   try {
     const url = new URL(value);
     if (!isIndeedOwnedUrl(value)) return false;
-    if (url.hostname === "smartapply.indeed.com" || url.hostname === "secure.indeed.com") return true;
+    if (url.hostname === "smartapply.indeed.com") {
+      // The bare review route is not a resumable application. Indeed relies on
+      // transient context from the preceding application route, so reopening it
+      // produces an empty page. Stateful SmartApply routes remain resumable.
+      return !(url.pathname.endsWith("/form/review-module") && !url.search);
+    }
+    if (url.hostname === "secure.indeed.com") return true;
     return url.hostname === "profile.indeed.com" && url.pathname.startsWith("/tailored-resume/") && Boolean(url.searchParams.get("continue"));
   } catch {
     return false;
