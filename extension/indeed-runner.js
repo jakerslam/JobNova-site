@@ -212,7 +212,10 @@
         return;
       }
 
-      const next = findNextTarget();
+      // SmartApply can expose the form inputs before its primary action has
+      // hydrated. Wait briefly for the real control instead of misclassifying
+      // that transient state as a manual-review blocker.
+      const next = await waitForNextTarget();
       if (!next) {
         await pause(command, "review_required", "No safe Continue, Next, Review, or confirmation step was detected.", `review_required_${step}`);
         completedCommands.add(command.id);
@@ -464,6 +467,18 @@
     return null;
   }
 
+  async function waitForNextTarget(timeoutMs = Math.min(8_000, transitionTimeoutMs)) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const target = findNextTarget();
+      if (target) return target;
+      const checkpoint = await detectStableCheckpoint();
+      if (checkpoint) return null;
+      await delay(200);
+    }
+    return null;
+  }
+
   function fillKnownFields(profile) {
     for (const field of document.querySelectorAll("input, textarea, select")) {
       if (!isVisible(field) || field.disabled || field.type === "hidden" || field.type === "file") continue;
@@ -642,15 +657,6 @@
       ariaLabel: element.getAttribute("aria-label") || "",
       label: actionLabel(element),
     };
-    const handlerResponse = await chrome.runtime.sendMessage({
-      type: "JOBNOVA_INVOKE_INDEED_CONTROL",
-      commandId: command.id,
-      agentId: command.agentId,
-      leaseToken: command.leaseToken,
-      control,
-    }).catch(() => undefined);
-    if (handlerResponse?.ok && handlerResponse.clicked) return;
-
     const response = await chrome.runtime.sendMessage({
       type: "JOBNOVA_TRUSTED_CLICK",
       commandId: command.id,
@@ -660,6 +666,15 @@
       y: rect.top + (rect.height / 2),
     }).catch(() => undefined);
     if (response?.ok && response.clicked) return;
+
+    const handlerResponse = await chrome.runtime.sendMessage({
+      type: "JOBNOVA_INVOKE_INDEED_CONTROL",
+      commandId: command.id,
+      agentId: command.agentId,
+      leaseToken: command.leaseToken,
+      control,
+    }).catch(() => undefined);
+    if (handlerResponse?.ok && handlerResponse.clicked) return;
 
     if (!globalThis.__JOBNOVA_TEST_TIMEOUT_MS__) {
       throw new Error(response?.message || "Chrome could not send a trusted click to Indeed.");

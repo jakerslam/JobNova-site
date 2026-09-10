@@ -393,6 +393,39 @@ async function testDelayedSmartApplyTransition() {
   }
 }
 
+async function testDelayedQuestionActionHydration() {
+  const { browser, page } = await createPage(
+    `<main>
+      <h1>Employer questions</h1>
+      <label>LinkedIn profile URL <input aria-label="LinkedIn profile URL"></label>
+      <script>
+        setTimeout(() => {
+          const button = document.createElement('button');
+          button.textContent = 'Continue';
+          button.addEventListener('click', () => {
+            document.body.innerHTML = '<main><h1>Review your application</h1><button>Submit your application</button></main>';
+          });
+          document.querySelector('main').append(button);
+        }, 120);
+      </script>
+    </main>`,
+    "https://smartapply.indeed.com/beta/indeedapply/form/questions-module/questions/1",
+    800,
+  );
+  try {
+    await runCommand(page);
+    const report = await waitForReport(page, "manual_action_required", "final_review_guard");
+    assertEqual(report?.manualActionReason, "review_required", "delayed question action reaches final review");
+    const reports = await page.evaluate(() => (window as JobNovaTestWindow).__jobnovaReports);
+    assertTruthy(
+      reports.some((candidate) => candidate.lastStep === "clicked_continue"),
+      "Continue is recognized after question-action hydration",
+    );
+  } finally {
+    await browser.close();
+  }
+}
+
 async function testExistingIndeedResumeSelection() {
   const { browser, page } = await createPage(
     `<main>
@@ -679,6 +712,7 @@ async function main() {
   await testRelayedApplicationAnswer();
   await testRenderedRequiredRadioGroupPause();
   await testDelayedSmartApplyTransition();
+  await testDelayedQuestionActionHydration();
   await testExistingIndeedResumeSelection();
   await testTailoredResumeContinuation();
   await testReviewPause();
