@@ -68,6 +68,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "JOBNOVA_INVOKE_INDEED_CONTROL") {
+    invokeIndeedControl(message, _sender)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, message: error instanceof Error ? error.message : String(error) }));
+    return true;
+  }
+
   if (message.type === "JOBNOVA_REPORT_COMPANION_RESULT" || message.type === "JOBNOVA_REPORT_COMPANION_STEP") {
     const report = message.type === "JOBNOVA_REPORT_COMPANION_STEP"
       ? { status: "in_progress", lastStep: "companion_tab_ready" }
@@ -420,6 +427,41 @@ async function dispatchTrustedClick(message, sender) {
 
   await dispatchDebuggerClick(tabId, x, y);
   return { ok: true, clicked: true };
+}
+
+async function invokeIndeedControl(message, sender) {
+  const state = await getActiveState(message.commandId);
+  assertLeaseMessageMatches(state, message);
+  const tabId = sender?.tab?.id;
+  if (!tabId || state.tabId !== tabId) {
+    throw new Error("The requested Indeed control did not come from the active application tab.");
+  }
+
+  const descriptor = {
+    id: String(message.control?.id || ""),
+    testId: String(message.control?.testId || ""),
+    ariaLabel: String(message.control?.ariaLabel || ""),
+    label: String(message.control?.label || ""),
+  };
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    args: [descriptor],
+    func: (expected) => {
+      const label = (element) => (element.innerText || element.value || element.getAttribute("aria-label") || element.getAttribute("title") || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const controls = Array.from(document.querySelectorAll("button, a, input[type='submit'], [role='button']"));
+      const control = controls.find((element) => expected.id && element.id === expected.id)
+        || controls.find((element) => expected.testId && element.getAttribute("data-testid") === expected.testId)
+        || controls.find((element) => expected.ariaLabel && element.getAttribute("aria-label") === expected.ariaLabel)
+        || controls.find((element) => expected.label && label(element) === expected.label);
+      if (!control || control.disabled || control.getAttribute("aria-disabled") === "true") return false;
+      control.click();
+      return true;
+    },
+  });
+  return { ok: true, clicked: Boolean(result?.result) };
 }
 
 async function reportCompanionResult(message, report) {

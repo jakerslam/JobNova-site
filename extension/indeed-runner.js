@@ -636,6 +636,21 @@
   async function activateTarget(command, element) {
     element.focus?.({ preventScroll: true });
     const rect = element.getBoundingClientRect();
+    const control = {
+      id: element.id || "",
+      testId: element.getAttribute("data-testid") || "",
+      ariaLabel: element.getAttribute("aria-label") || "",
+      label: actionLabel(element),
+    };
+    const handlerResponse = await chrome.runtime.sendMessage({
+      type: "JOBNOVA_INVOKE_INDEED_CONTROL",
+      commandId: command.id,
+      agentId: command.agentId,
+      leaseToken: command.leaseToken,
+      control,
+    }).catch(() => undefined);
+    if (handlerResponse?.ok && handlerResponse.clicked) return;
+
     const response = await chrome.runtime.sendMessage({
       type: "JOBNOVA_TRUSTED_CLICK",
       commandId: command.id,
