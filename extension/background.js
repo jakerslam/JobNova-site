@@ -163,12 +163,11 @@ async function startIndeedApplication(state, tabId) {
     await chrome.tabs.update(tabId, { url: target.href });
     applicationNavigationStarted = true;
   } else {
-    await dispatchDebuggerClick(tabId, target.x, target.y);
+    await invokeIndeedApplyHandler(tabId);
     applicationNavigationStarted = await waitForApplicationNavigation(tabId, state.command.jobUrl);
 
-    // The Indeed widget is a JavaScript button, not a normal link. Retry only
-    // when the first trusted pointer sequence left the original job page in
-    // place, using the freshly measured real button target.
+    // The handler is the most direct representation of the user action. Keep
+    // a trusted pointer fallback for widgets that reject programmatic clicks.
     if (!applicationNavigationStarted) {
       const retryTarget = await readIndeedApplyTarget(tabId);
       if (retryTarget && !retryTarget.external) {
@@ -202,6 +201,24 @@ async function startIndeedApplication(state, tabId) {
     ));
   }, 1_000);
   return true;
+}
+
+async function invokeIndeedApplyHandler(tabId) {
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: () => {
+      const label = (element) => (element.innerText || element.value || element.getAttribute("aria-label") || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const button = Array.from(document.querySelectorAll("#indeedApplyButton, button, a, input[type='submit'], [role='button']"))
+        .find((element) => /^(?:apply(?:\s+(?:now|with indeed|on indeed|for this job))?|easily apply|start application|start your application)$/i.test(label(element)));
+      if (!button || button.disabled || button.getAttribute("aria-disabled") === "true") return false;
+      button.click();
+      return true;
+    },
+  });
+  return Boolean(result?.result);
 }
 
 async function waitForIndeedApplyTarget(tabId, timeoutMs = 15_000) {
